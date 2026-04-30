@@ -1,0 +1,967 @@
+Project Instructions — Recipe, Yield and Production Planner App
+
+Project goal
+
+Build a browser-based local-first app for bakers and cooks to manage ingredients, recipes, recipe scaling, costing, batch planning, shopping lists, and eventually inventory.
+
+The app should be designed around four central concepts:
+
+Ingredients
+Recipes
+Yield / scaling logic
+Production planning / shopping list
+
+The first implementation should not try to build everything at once. The priority is to create a robust foundation for ingredients, units, conversions, recipe structure, yield definitions, and costing, so future features can build on top of it without needing a major rewrite.
+
+Use:
+
+React
+TypeScript
+Vite
+Dexie.js over IndexedDB
+Local-first data storage
+No backend for the first version
+Export/import backup support later, but not required in the first milestone
+
+The app should be coded in a modular way, with domain logic separated from UI components.
+
+Development philosophy
+
+Do not make this a simple visual recipe notebook. The core value of the app is that recipes can be scaled, costed, combined into production plans, and compared against inventory.
+
+Therefore, prioritize correctness and data structure over visual polish.
+
+The first milestone should focus on:
+
+Unit system
+Ingredient database
+Purchase options for ingredients
+Recipe data model
+Yield model
+Scaling logic foundation
+Clear warnings when calculations are incomplete
+
+Avoid hardcoding assumptions in UI components. Unit conversion, costing, and scaling should live in reusable service/helper modules.
+
+Suggested project structure
+
+Create a structure similar to this:
+
+src/
+  app/
+    App.tsx
+    routes.tsx
+
+  db/
+    db.ts
+    schema.ts
+    seedData.ts
+
+  domain/
+    units/
+      unitTypes.ts
+      unitRegistry.ts
+      conversions.ts
+      unitFormatting.ts
+
+    ingredients/
+      ingredientTypes.ts
+      ingredientMath.ts
+      priceMath.ts
+
+    recipes/
+      recipeTypes.ts
+      yieldTypes.ts
+      scaling.ts
+      recipeCosting.ts
+      recipeValidation.ts
+
+    production/
+      batchPlannerTypes.ts
+      batchPlannerMath.ts
+
+    inventory/
+      inventoryTypes.ts
+
+  components/
+    common/
+      SearchInput.tsx
+      Modal.tsx
+      DataTable.tsx
+      UnitSelect.tsx
+      WarningList.tsx
+
+    ingredients/
+      IngredientList.tsx
+      IngredientEditor.tsx
+      PurchaseOptionsTable.tsx
+
+    recipes/
+      RecipeList.tsx
+      RecipeEditor.tsx
+      RecipeIngredientTable.tsx
+      ProcedureStepEditor.tsx
+      YieldEditor.tsx
+
+    calculator/
+      RecipeScaler.tsx
+      ScaledRecipeView.tsx
+
+    production/
+      BatchPlanner.tsx
+
+    inventory/
+      InventoryPlaceholder.tsx
+
+  utils/
+    ids.ts
+    dates.ts
+    numbers.ts
+
+Data model
+1. Units
+
+Create a predefined unit registry. Each unit should belong to a measurement dimension.
+
+Supported unit dimensions:
+
+type UnitDimension = "mass" | "volume" | "count" | "length";
+
+Initial units:
+
+// Mass
+"mg", "g", "kg", "oz", "lb"
+
+// Volume
+"mL", "L", "cm3", "tsp", "tbsp", "cup"
+
+// Count
+"unit"
+
+// Length, useful for mold dimensions
+"mm", "cm", "m", "inch"
+
+Each unit should have:
+
+interface UnitDefinition {
+  id: string;
+  label: string;
+  dimension: UnitDimension;
+  toBaseFactor: number;
+  baseUnit: string;
+}
+
+Base units:
+
+mass: "g"
+volume: "mL"
+count: "unit"
+length: "cm"
+
+Important rule:
+
+Units can be directly converted only within the same dimension.
+Mass-to-volume conversion requires ingredient density.
+Count-to-mass conversion requires ingredient unit weight.
+Count-to-volume conversion requires unit weight plus density, or a direct custom conversion in the future.
+
+2. Ingredient model
+
+Ingredients should contain stable properties only. Prices and purchase options should be stored separately or as a nested list.
+
+interface Ingredient {
+  id: string;
+  name: string;
+  categoryId?: string;
+
+  preferredUnit: UnitId;
+
+  density?: {
+    value: number;
+    unit: "g/mL" | "kg/L" | "g/cm3";
+  };
+
+  unitWeight?: {
+    value: number;
+    unit: "g/unit" | "kg/unit";
+  };
+
+  notes?: string;
+
+  createdAt: string;
+  updatedAt: string;
+}
+Meaning of preferredUnit
+
+The preferred unit is not necessarily the storage unit. It is the unit the app should prefer when displaying this ingredient in:
+
+Recipe ingredient tables
+Scaled recipes
+Batch planner results
+Shopping list summaries
+Inventory summaries
+
+Examples:
+
+Ingredient	Preferred unit
+Flour	g or kg
+Milk	mL or L
+Eggs	unit
+Vanilla extract	mL or tsp
+Butter	g
+
+The app should still store and calculate internally using normalized base units when needed.
+
+3. Ingredient categories
+
+Categories are useful for organization, filtering, shopping lists, and later reports.
+
+Initial categories can be user-editable, but seed the app with common categories:
+
+interface IngredientCategory {
+  id: string;
+  name: string;
+  sortOrder: number;
+}
+
+Suggested seed categories:
+
+Flours & starches
+Sugars & sweeteners
+Dairy
+Eggs
+Fats & oils
+Chocolate & cocoa
+Nuts & seeds
+Fruits
+Leavening agents
+Flavorings & extracts
+Spices
+Liquids
+Additives & stabilizers
+Packaging
+Other
+
+Why categories matter:
+
+Search/filter ingredients
+Group shopping lists
+Group inventory
+Quickly review recipe composition
+Separate edible ingredients from packaging if needed later
+4. Purchase options
+
+Each ingredient can have multiple purchase options.
+
+For example, flour may have:
+
+1 kg bag
+5 kg bag
+25 kg sack
+
+The purchase option model:
+
+interface PurchaseOption {
+  id: string;
+  ingredientId: string;
+
+  amount: number;
+  unit: UnitId;
+
+  price: number;
+  currency: string;
+
+  lastUpdated: string;
+  referenceUrl?: string;
+  supplier?: string;
+  brand?: string;
+  notes?: string;
+
+  isPreferred?: boolean;
+
+  createdAt: string;
+  updatedAt: string;
+}
+
+Rules:
+
+A purchase option must point to one ingredient.
+The amount/unit/price combination should allow the app to calculate price per base unit.
+If the purchase option unit cannot be converted to the ingredient’s calculation base, show a warning.
+The user can create many purchase options for the same ingredient.
+One purchase option may be marked as preferred.
+If none is preferred, use the most recently updated valid option for cost calculations.
+
+Example:
+
+Ingredient: Flour
+
+Purchase options:
+1 kg, $80, updated 2026-04-20
+5 kg, $350, updated 2026-04-18
+25 kg, $1500, updated 2026-03-12
+Ingredient conversion logic
+
+Create a service called something like:
+
+convertIngredientAmount(...)
+
+It should support:
+
+convertIngredientAmount({
+  ingredient,
+  amount,
+  fromUnit,
+  toUnit
+})
+
+Expected behavior:
+
+If fromUnit and toUnit belong to the same dimension, use direct unit conversion.
+If converting mass ↔ volume, require density.
+If converting count ↔ mass, require unit weight.
+If converting count ↔ volume, require both unit weight and density, unless a future direct conversion exists.
+Return either a successful conversion or a structured warning/error.
+
+Use a result type:
+
+type ConversionResult =
+  | {
+      ok: true;
+      amount: number;
+      unit: UnitId;
+      warnings: string[];
+    }
+  | {
+      ok: false;
+      reason: string;
+      warnings: string[];
+    };
+
+Do not silently guess missing density or unit weight.
+
+For example:
+
+Milk:
+density = 1.03 g/mL
+Can convert g ↔ mL.
+
+Egg:
+unitWeight = 50 g/unit
+Can convert unit ↔ g.
+If density is also provided, can convert unit ↔ mL.
+
+Flour:
+If no density is provided, can convert g ↔ kg, but cannot convert g ↔ cup.
+Practical display of fractional count units
+
+For ingredients measured by count, fractional results should be displayed intelligently.
+
+Examples:
+
+0.5 egg → 1/2 egg, approximately 25 g beaten egg
+1.5 eggs → 1 1/2 eggs
+0.25 egg → 1/4 egg, approximately 12.5 g beaten egg
+
+The internal calculation can use decimals, but display should be practical for cooks.
+
+Create a helper:
+
+formatPracticalAmount({
+  ingredient,
+  amount,
+  unit
+})
+Recipe model
+
+Recipes should be able to contain ingredients and, later, sub-recipes.
+
+Use a flexible recipe line model:
+
+type RecipeLineItemType = "ingredient" | "recipe";
+
+interface RecipeLine {
+  id: string;
+
+  itemType: RecipeLineItemType;
+
+  ingredientId?: string;
+  subRecipeId?: string;
+
+  amount: number;
+  unit: UnitId;
+
+  notes?: string;
+  sortOrder: number;
+}
+
+Rules:
+
+If itemType === "ingredient", ingredientId is required.
+If itemType === "recipe", subRecipeId is required.
+A recipe must never be allowed to contain itself directly or indirectly.
+Sub-recipes can be implemented later, but the data model should be prepared now.
+
+Recipe model:
+
+interface Recipe {
+  id: string;
+  name: string;
+  categoryId?: string;
+
+  description?: string;
+  notes?: string;
+
+  yield: YieldDefinition;
+
+  isSubRecipe: boolean;
+
+  lines: RecipeLine[];
+  procedureSteps: ProcedureStep[];
+
+  createdAt: string;
+  updatedAt: string;
+}
+Procedure steps
+
+Use a step-based procedure editor instead of one large free-text field.
+
+interface ProcedureStep {
+  id: string;
+  recipeId: string;
+
+  sortOrder: number;
+
+  text: string;
+
+  imageBlobId?: string;
+
+  timeMinutes?: number;
+  temperature?: {
+    value: number;
+    unit: "C" | "F";
+  };
+
+  notes?: string;
+}
+
+Temperature and time should be optional. They may be redundant with the text, but keeping them structured allows future features such as:
+
+Timers
+Baking schedule
+Procedure summaries
+Search by baking temperature
+Automatic production timeline
+
+For now, the UI can keep them simple and optional.
+
+Yield model
+
+Yield is central to the app. It should be explicit and structured.
+
+type YieldType =
+  | "count"
+  | "mass"
+  | "volume"
+  | "servings"
+  | "moldArea"
+  | "moldVolume";
+
+type YieldDefinition =
+  | CountYield
+  | MassYield
+  | VolumeYield
+  | ServingsYield
+  | MoldAreaYield
+  | MoldVolumeYield;
+Count yield
+
+Example: 12 cookies.
+
+interface CountYield {
+  type: "count";
+  amount: number;
+  label: string; // cookies, muffins, alfajores, etc.
+}
+
+Scaling:
+
+target count / original count
+Mass yield
+
+Example: 1000 g of dough.
+
+interface MassYield {
+  type: "mass";
+  amount: number;
+  unit: UnitId;
+}
+
+Scaling:
+
+target mass / original mass
+Volume yield
+
+Example: 2 L of soup, cream, ganache, etc.
+
+interface VolumeYield {
+  type: "volume";
+  amount: number;
+  unit: UnitId;
+}
+
+Scaling:
+
+target volume / original volume
+Servings yield
+
+Example: 8 portions.
+
+interface ServingsYield {
+  type: "servings";
+  amount: number;
+  label: string; // portions, slices, plates, etc.
+}
+
+Scaling:
+
+target servings / original servings
+
+This is approximate, but useful.
+
+Mold area yield
+
+Useful when the recipe is scaled to a different pan with similar height.
+
+interface MoldAreaYield {
+  type: "moldArea";
+  shape: "rectangle" | "circle";
+
+  rectangle?: {
+    width: number;
+    length: number;
+    unit: UnitId;
+  };
+
+  circle?: {
+    diameter: number;
+    unit: UnitId;
+  };
+}
+
+Scaling:
+
+target area / original area
+
+Examples:
+
+20 cm round cake → 24 cm round cake
+30 × 40 cm tray → 20 × 30 cm tray
+Mold volume yield
+
+Useful when the recipe is defined by mold dimensions and fill depth.
+
+interface MoldVolumeYield {
+  type: "moldVolume";
+  shape: "rectangularPrism" | "cylinder";
+
+  rectangularPrism?: {
+    width: number;
+    length: number;
+    height: number;
+    unit: UnitId;
+  };
+
+  cylinder?: {
+    diameter: number;
+    height: number;
+    unit: UnitId;
+  };
+}
+
+Scaling:
+
+target volume / original volume
+
+Example:
+
+Original mold:
+12 × 30 × 7 cm = 2520 cm³
+
+Target mold:
+12 × 15 × 7 cm = 1260 cm³
+
+Scale factor:
+1260 / 2520 = 0.5
+Recipe scaling logic
+
+Create a function:
+
+calculateScaleFactor({
+  originalYield,
+  targetYield
+})
+
+It should return:
+
+type ScaleFactorResult =
+  | {
+      ok: true;
+      factor: number;
+      warnings: string[];
+    }
+  | {
+      ok: false;
+      reason: string;
+      warnings: string[];
+    };
+
+Rules:
+
+Count can scale only against count.
+Mass can scale only against mass.
+Volume can scale only against volume.
+Servings can scale only against servings.
+Mold area can scale only against mold area.
+Mold volume can scale only against mold volume.
+Do not allow ambiguous scaling unless the user explicitly changes the recipe’s yield type.
+Warn the user when the yield type is approximate, especially servings.
+
+Then create:
+
+scaleRecipe(recipe, targetYield)
+
+It should:
+
+Calculate scale factor.
+Multiply every recipe line amount by the scale factor.
+Preserve the original units where possible.
+Return warnings if an ingredient has missing conversion or missing cost data.
+Calculate total cost when possible.
+Calculate cost per output unit when possible.
+Recipe costing
+
+Create a function:
+
+calculateRecipeCost(recipe)
+
+And another:
+
+calculateScaledRecipeCost(scaledRecipe)
+
+Rules:
+
+Use the preferred purchase option if available.
+Otherwise use the most recently updated valid purchase option.
+Convert recipe line amount into the purchase option’s unit or into a common base unit.
+If conversion is impossible, return a warning.
+If no valid purchase option exists, return a warning.
+Do not silently skip missing costs.
+
+Return:
+
+interface CostResult {
+  totalCost: number | null;
+  currency: string | null;
+  lineCosts: RecipeLineCost[];
+  warnings: string[];
+}
+
+Example warnings:
+
+Flour price was last updated more than 90 days ago.
+Vanilla extract has no purchase option.
+Cocoa powder cannot be costed because no mass/volume conversion exists.
+Eggs were scaled to 0.5 unit; display as 1/2 egg or 25 g beaten egg.
+First implementation milestone
+
+Build only the foundation first.
+
+Milestone 1: Ingredients and unit conversion
+
+Implement:
+
+Vite + React + TypeScript project.
+Dexie database setup.
+Unit registry.
+Ingredient data model.
+Purchase option data model.
+Ingredient list UI.
+Ingredient search bar.
+Ingredient create/edit/delete.
+Purchase option table inside ingredient editor.
+Density and unit weight fields.
+Conversion helper functions.
+Price-per-base-unit calculation.
+Basic validation and warnings.
+
+Do not implement the full recipe editor yet until the ingredient and unit system is stable.
+
+The ingredient editor should allow:
+
+Ingredient name
+Category
+Preferred unit
+Density value and density unit
+Unit weight value and unit weight unit
+Notes
+Purchase options table:
+Amount
+Unit
+Price
+Currency
+Last updated
+Reference URL
+Supplier
+Brand
+Notes
+Preferred option checkbox
+
+The ingredient list should show:
+
+Name
+Category
+Preferred unit
+Current usable price
+Price unit
+Last updated
+Warning status
+
+Example warning badges:
+
+Missing price
+Missing density
+Old price
+Invalid purchase option
+
+Milestone 2: Recipe model and recipe editor
+
+After Milestone 1 works, implement:
+
+Recipe list.
+Recipe editor.
+Recipe ingredient table.
+Yield editor.
+Procedure step editor.
+Recipe save/load/delete.
+Basic print view.
+
+Recipe ingredient table columns:
+
+Ingredient / Sub-recipe
+Amount
+Unit
+Notes
+
+For now, sub-recipes can be disabled in the UI, but the model should be ready.
+
+Yield editor should support:
+
+Count
+Mass
+Volume
+Servings
+Mold area
+Mold volume
+
+Procedure step editor should support:
+
+Step number
+Text
+Optional image
+Optional time
+Optional temperature
+Optional notes
+
+Milestone 3: Recipe scaling calculator
+
+Implement:
+
+Select recipe.
+Show original yield.
+Input target yield using same yield type.
+Calculate scale factor.
+Show scaled ingredient list.
+Show warnings.
+Show total cost.
+Show cost per output unit when meaningful.
+Print scaled recipe.
+
+Example output:
+
+Recipe: Chocolate cookies
+Original yield: 12 cookies
+Target yield: 24 cookies
+Scale factor: 2.00
+
+Ingredients:
+- Flour: 500 g
+- Sugar: 240 g
+- Eggs: 2 units
+- Butter: 200 g
+
+Total estimated cost: $...
+Cost per cookie: $...
+
+Milestone 4: Batch planner / production planner
+
+Implement:
+
+Table where the user selects multiple recipes.
+Each row has:
+Recipe
+Target yield
+Yield unit/type
+Calculate each recipe scale factor.
+Aggregate ingredients across all selected recipes.
+Convert totals into preferred ingredient units.
+Calculate total cost.
+Generate shopping list.
+Print production plan.
+
+Suggested UI name:
+
+Batch Planner
+
+Not “compilator”.
+
+Example table:
+
+Recipe              Target
+Lemon cake          3 cakes
+Chocolate cookies   48 cookies
+Lemon curd          2 kg
+
+Output:
+
+Total ingredients needed:
+Flour: 3.2 kg
+Eggs: 36 units
+Butter: 1.5 kg
+Sugar: 2.4 kg
+
+Milestone 5: Inventory placeholder
+
+Do not build full inventory yet, but reserve space in the app.
+
+Create an Inventory section with a placeholder model:
+
+interface InventoryItem {
+  id: string;
+  ingredientId: string;
+
+  amount: number;
+  unit: UnitId;
+
+  location?: string;
+  expirationDate?: string;
+  notes?: string;
+
+  createdAt: string;
+  updatedAt: string;
+}
+
+Initial placeholder UI:
+
+Inventory page exists.
+User can see a message explaining that inventory will later subtract available stock from batch planner requirements.
+Optionally allow very simple add/edit/delete inventory items, but do not integrate deeply yet.
+
+Future logic:
+
+Required amount - inventory amount = missing amount to buy
+
+Milestone 6: Sub-recipes
+
+Add later, after scaling and costing are stable.
+
+Rules:
+
+A recipe can be marked as isSubRecipe.
+A recipe line can reference either an ingredient or another recipe.
+A recipe cannot contain itself.
+A recipe cannot indirectly contain itself through nested sub-recipes.
+Sub-recipes must have their own yield.
+When used inside another recipe, the app must know how much of the sub-recipe is required.
+
+Example:
+
+Lemon cake
+- Sponge
+- Lemon curd
+- Buttercream
+
+Lemon curd is its own recipe and can also be used as a component.
+Important implementation rules
+1. Never silently guess
+
+If the app cannot convert something, it must warn the user.
+
+Bad behavior:
+
+Converting flour cups to grams using a random default.
+
+Good behavior:
+
+Cannot convert flour from cup to g because this ingredient has no density or custom conversion.
+2. Keep calculations separate from UI
+
+Do not put conversion logic inside React components.
+
+Use domain services:
+
+domain/units/conversions.ts
+domain/ingredients/ingredientMath.ts
+domain/ingredients/priceMath.ts
+domain/recipes/scaling.ts
+domain/recipes/recipeCosting.ts
+
+React components should call these services and display the result.
+
+3. Use result objects, not thrown errors, for expected calculation problems
+
+Missing density, missing price, or incompatible yield type are not application crashes. They are expected validation results.
+
+Use structured results:
+
+{
+  ok: false,
+  reason: "...",
+  warnings: [...]
+}
+4. Store dates as ISO strings
+
+Use:
+
+new Date().toISOString()
+
+Display dates in the UI using helper functions.
+
+5. Use stable IDs
+
+Use a helper:
+
+crypto.randomUUID()
+
+Wrap it in:
+
+createId()
+
+So it can be replaced later if needed.
+
+6. Add seed data
+
+Create optional seed ingredients for development:
+
+Flour
+Sugar
+Butter
+Egg
+Milk
+Water
+Vanilla extract
+Cocoa powder
+Chocolate
+Heavy cream
+
+Add realistic but clearly fake prices and conversions.
