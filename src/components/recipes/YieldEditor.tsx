@@ -1,4 +1,5 @@
 import { useI18n } from "../../app/i18n";
+import { NumberInput } from "../common/NumberInput";
 import { UnitSelect } from "../common/UnitSelect";
 import type { YieldDefinition, YieldType } from "../../domain/recipes/yieldTypes";
 import { createDefaultYield } from "../../domain/recipes/yieldFormatting";
@@ -58,12 +59,10 @@ function renderYieldFields(
         <>
           <label>
             {t("Amount")}
-            <input
-              type="number"
-              min="0"
-              step="any"
+            <NumberInput
+              min={0}
               value={value.amount}
-              onChange={(event) => onChange({ ...value, amount: Number(event.target.value) })}
+              onValueChange={(amount) => onChange({ ...value, amount })}
             />
           </label>
           <label className="full-width">
@@ -77,12 +76,10 @@ function renderYieldFields(
         <>
           <label>
             {t("Amount")}
-            <input
-              type="number"
-              min="0"
-              step="any"
+            <NumberInput
+              min={0}
               value={value.amount}
-              onChange={(event) => onChange({ ...value, amount: Number(event.target.value) })}
+              onValueChange={(amount) => onChange({ ...value, amount })}
             />
           </label>
           <label>
@@ -96,12 +93,10 @@ function renderYieldFields(
         <>
           <label>
             {t("Amount")}
-            <input
-              type="number"
-              min="0"
-              step="any"
+            <NumberInput
+              min={0}
               value={value.amount}
-              onChange={(event) => onChange({ ...value, amount: Number(event.target.value) })}
+              onValueChange={(amount) => onChange({ ...value, amount })}
             />
           </label>
           <label>
@@ -119,12 +114,10 @@ function renderYieldFields(
         <>
           <label>
             {t("Amount")}
-            <input
-              type="number"
-              min="0"
-              step="any"
+            <NumberInput
+              min={0}
               value={value.amount}
-              onChange={(event) => onChange({ ...value, amount: Number(event.target.value) })}
+              onValueChange={(amount) => onChange({ ...value, amount })}
             />
           </label>
           <label className="full-width">
@@ -160,15 +153,13 @@ function renderYieldFields(
             <>
               <label>
                 {t("Diameter")}
-                <input
-                  type="number"
-                  min="0"
-                  step="any"
+                <NumberInput
+                  min={0}
                   value={value.circle?.diameter ?? 0}
-                  onChange={(event) =>
+                  onValueChange={(diameter) =>
                     onChange({
                       ...value,
-                      circle: { diameter: Number(event.target.value), unit: value.circle?.unit ?? "cm" },
+                      circle: { diameter, unit: value.circle?.unit ?? "cm" },
                     })
                   }
                 />
@@ -191,16 +182,14 @@ function renderYieldFields(
             <>
               <label>
                 {t("Width")}
-                <input
-                  type="number"
-                  min="0"
-                  step="any"
+                <NumberInput
+                  min={0}
                   value={value.rectangle?.width ?? 0}
-                  onChange={(event) =>
+                  onValueChange={(width) =>
                     onChange({
                       ...value,
                       rectangle: {
-                        width: Number(event.target.value),
+                        width,
                         length: value.rectangle?.length ?? 0,
                         unit: value.rectangle?.unit ?? "cm",
                       },
@@ -210,17 +199,15 @@ function renderYieldFields(
               </label>
               <label>
                 {t("Length")}
-                <input
-                  type="number"
-                  min="0"
-                  step="any"
+                <NumberInput
+                  min={0}
                   value={value.rectangle?.length ?? 0}
-                  onChange={(event) =>
+                  onValueChange={(length) =>
                     onChange({
                       ...value,
                       rectangle: {
                         width: value.rectangle?.width ?? 0,
-                        length: Number(event.target.value),
+                        length,
                         unit: value.rectangle?.unit ?? "cm",
                       },
                     })
@@ -279,16 +266,14 @@ function renderYieldFields(
             <>
               <label>
                 {t("Diameter")}
-                <input
-                  type="number"
-                  min="0"
-                  step="any"
+                <NumberInput
+                  min={0}
                   value={value.cylinder?.diameter ?? 0}
-                  onChange={(event) =>
+                  onValueChange={(diameter) =>
                     onChange({
                       ...value,
                       cylinder: {
-                        diameter: Number(event.target.value),
+                        diameter,
                         height: value.cylinder?.height ?? 0,
                         unit: value.cylinder?.unit ?? "cm",
                       },
@@ -298,17 +283,15 @@ function renderYieldFields(
               </label>
               <label>
                 {t("Height")}
-                <input
-                  type="number"
-                  min="0"
-                  step="any"
+                <NumberInput
+                  min={0}
                   value={value.cylinder?.height ?? 0}
-                  onChange={(event) =>
+                  onValueChange={(height) =>
                     onChange({
                       ...value,
                       cylinder: {
                         diameter: value.cylinder?.diameter ?? 0,
-                        height: Number(event.target.value),
+                        height,
                         unit: value.cylinder?.unit ?? "cm",
                       },
                     })
@@ -337,16 +320,14 @@ function renderYieldFields(
             <>
               <label>
                 {t("Width")}
-                <input
-                  type="number"
-                  min="0"
-                  step="any"
+                <NumberInput
+                  min={0}
                   value={value.rectangularPrism?.width ?? 0}
-                  onChange={(event) =>
+                  onValueChange={(width) =>
                     onChange({
                       ...value,
                       rectangularPrism: {
-                        width: Number(event.target.value),
+                        width,
                         length: value.rectangularPrism?.length ?? 0,
                         height: value.rectangularPrism?.height ?? 0,
                         unit: value.rectangularPrism?.unit ?? "cm",
@@ -357,17 +338,15 @@ function renderYieldFields(
               </label>
               <label>
                 {t("Length")}
-                <input
-                  type="number"
-                  min="0"
-                  step="any"
+                <NumberInput
+                  min={0}
                   value={value.rectangularPrism?.length ?? 0}
-                  onChange={(event) =>
+                  onValueChange={(length) =>
                     onChange({
                       ...value,
                       rectangularPrism: {
                         width: value.rectangularPrism?.width ?? 0,
-                        length: Number(event.target.value),
+                        length,
                         height: value.rectangularPrism?.height ?? 0,
                         unit: value.rectangularPrism?.unit ?? "cm",
                       },
@@ -377,18 +356,16 @@ function renderYieldFields(
               </label>
               <label>
                 {t("Height")}
-                <input
-                  type="number"
-                  min="0"
-                  step="any"
+                <NumberInput
+                  min={0}
                   value={value.rectangularPrism?.height ?? 0}
-                  onChange={(event) =>
+                  onValueChange={(height) =>
                     onChange({
                       ...value,
                       rectangularPrism: {
                         width: value.rectangularPrism?.width ?? 0,
                         length: value.rectangularPrism?.length ?? 0,
-                        height: Number(event.target.value),
+                        height,
                         unit: value.rectangularPrism?.unit ?? "cm",
                       },
                     })

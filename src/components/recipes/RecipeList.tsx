@@ -25,7 +25,6 @@ export function RecipeList({ recipes, selectedRecipeId, onSelect, onEdit, onDele
           <tr>
             <th>{t("Name")}</th>
             <th>{t("Yield")}</th>
-            <th>{t("Lines")}</th>
             <th>{t("Updated")}</th>
             <th aria-label={t("Actions")} />
           </tr>
@@ -43,7 +42,6 @@ export function RecipeList({ recipes, selectedRecipeId, onSelect, onEdit, onDele
                 {recipe.description ? <div className="muted">{recipe.description}</div> : null}
               </td>
               <td>{formatYield(recipe.yield, t)}</td>
-              <td>{recipe.lines.length}</td>
               <td>{t(formatDate(recipe.updatedAt))}</td>
               <td>
                 <div className="inline-actions">

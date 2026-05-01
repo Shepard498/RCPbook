@@ -23,11 +23,13 @@ export function RecipePreview({ recipe, ingredients, purchaseOptions, recipes, o
   const { t } = useI18n();
   const [targetYield, setTargetYield] = useState<YieldDefinition>(() => cloneYield(recipe.yield));
   const [targetYieldText, setTargetYieldText] = useState(() => formatTargetYieldInput(recipe.yield));
+  const [includeSubRecipes, setIncludeSubRecipes] = useState(false);
 
   useEffect(() => {
     const nextTargetYield = cloneYield(recipe.yield);
     setTargetYield(nextTargetYield);
     setTargetYieldText(formatTargetYieldInput(nextTargetYield));
+    setIncludeSubRecipes(false);
   }, [recipe.id, recipe.yield]);
 
   const scaledRecipeResult = useMemo(() => scaleRecipe(recipe, targetYield), [recipe, targetYield]);
@@ -46,6 +48,7 @@ export function RecipePreview({ recipe, ingredients, purchaseOptions, recipes, o
       }),
     [displayRecipe, ingredients, purchaseOptions, recipes],
   );
+  const previewWarnings = Array.from(new Set([...scalingWarnings, ...costResult.warnings]));
   const printStats: RecipePrintStats = {
     totalCost:
       costResult.totalCost !== null && costResult.currency
@@ -53,6 +56,7 @@ export function RecipePreview({ recipe, ingredients, purchaseOptions, recipes, o
         : t("Incomplete"),
     costPerOutput: getCostPerOutput(displayRecipe.yield, costResult, t),
   };
+  const hasSubRecipeLines = displayRecipe.lines.some((line) => line.itemType === "recipe");
 
   function updateTargetYield(value: string) {
     setTargetYieldText(value);
@@ -80,6 +84,16 @@ export function RecipePreview({ recipe, ingredients, purchaseOptions, recipes, o
               <span>{getTargetYieldSuffix(targetYield)}</span>
             </span>
           </label>
+          {hasSubRecipeLines ? (
+            <label className="checkbox-label recipe-print-option">
+              <input
+                type="checkbox"
+                checked={includeSubRecipes}
+                onChange={(event) => setIncludeSubRecipes(event.target.checked)}
+              />
+              {t("Include sub-recipes")}
+            </label>
+          ) : null}
           <div className="table-actions">
             <button type="button" onClick={() => onEdit(recipe)}>
               {t("Edit")}
@@ -90,9 +104,9 @@ export function RecipePreview({ recipe, ingredients, purchaseOptions, recipes, o
           </div>
         </div>
       </div>
-      {scalingWarnings.length > 0 ? (
+      {previewWarnings.length > 0 ? (
         <div className="recipe-preview-warning">
-          <WarningList warnings={scalingWarnings} />
+          <WarningList warnings={previewWarnings} />
         </div>
       ) : null}
       <RecipePrintView
@@ -101,6 +115,7 @@ export function RecipePreview({ recipe, ingredients, purchaseOptions, recipes, o
         recipes={recipes}
         stats={printStats}
         className="recipe-print-preview"
+        includeSubRecipes={includeSubRecipes}
       />
     </aside>
   );

@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useI18n } from "../../app/i18n";
 import { db } from "../../db/db";
 import type { Ingredient } from "../../domain/ingredients/ingredientTypes";
-import type { Recipe } from "../../domain/recipes/recipeTypes";
+import type { ProcedureStep, Recipe } from "../../domain/recipes/recipeTypes";
+import { scaleRecipe } from "../../domain/recipes/scaling";
+import { createSubRecipeTargetYield } from "../../domain/recipes/subRecipeMath";
 import { formatYield } from "../../domain/recipes/yieldFormatting";
 import { formatPracticalAmount } from "../../utils/amountFormatting";
 
@@ -17,22 +19,40 @@ interface RecipePrintViewProps {
   recipes?: Recipe[];
   stats?: RecipePrintStats;
   className?: string;
+  includeSubRecipes?: boolean;
 }
 
-export function RecipePrintView({ recipe, ingredients, recipes = [], stats, className }: RecipePrintViewProps) {
+export function RecipePrintView({
+  recipe,
+  ingredients,
+  recipes = [],
+  stats,
+  className,
+  includeSubRecipes = false,
+}: RecipePrintViewProps) {
   const { t } = useI18n();
-  const ingredientById = new Map(ingredients.map((ingredient) => [ingredient.id, ingredient]));
-  const recipeById = new Map(recipes.map((availableRecipe) => [availableRecipe.id, availableRecipe]));
+  const ingredientById = useMemo(
+    () => new Map(ingredients.map((ingredient) => [ingredient.id, ingredient])),
+    [ingredients],
+  );
+  const recipeById = useMemo(
+    () => new Map(recipes.map((availableRecipe) => [availableRecipe.id, availableRecipe])),
+    [recipes],
+  );
   const sortedSteps = useMemo(
-    () => [...recipe.procedureSteps].sort((a, b) => a.sortOrder - b.sortOrder),
+    () => sortProcedureSteps(recipe.procedureSteps),
     [recipe.procedureSteps],
+  );
+  const subRecipeInstructionSections = useMemo(
+    () => (includeSubRecipes ? collectSubRecipeInstructionSections(recipe, recipeById) : []),
+    [includeSubRecipes, recipe, recipeById],
   );
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
 
   useEffect(() => {
     let isMounted = true;
     const createdUrls: string[] = [];
-    const imageBlobIds = sortedSteps
+    const imageBlobIds = [...sortedSteps, ...subRecipeInstructionSections.flatMap((section) => section.steps)]
       .map((step) => step.imageBlobId)
       .filter((imageBlobId): imageBlobId is string => Boolean(imageBlobId));
 
@@ -72,7 +92,41 @@ export function RecipePrintView({ recipe, ingredients, recipes = [], stats, clas
       isMounted = false;
       createdUrls.forEach((url) => URL.revokeObjectURL(url));
     };
-  }, [sortedSteps]);
+  }, [sortedSteps, subRecipeInstructionSections]);
+
+  function renderProcedureStep(step: ProcedureStep) {
+    return (
+      <li key={step.id}>
+        <p className="recipe-print-step-text">{step.text}</p>
+        {step.time || step.timeMinutes || step.temperature ? (
+          <p>
+            {step.time ? `${step.time.value} ${step.time.unit}` : step.timeMinutes ? `${step.timeMinutes} min` : ""}
+            {(step.time || step.timeMinutes) && step.temperature ? " - " : ""}
+            {step.temperature ? `${step.temperature.value}${step.temperature.unit}` : ""}
+          </p>
+        ) : null}
+        {step.imageBlobId && imageUrls[step.imageBlobId] ? (
+          <img
+            className="recipe-print-step-image"
+            src={imageUrls[step.imageBlobId]}
+            alt={`Step ${step.sortOrder + 1}`}
+          />
+        ) : null}
+      </li>
+    );
+  }
+
+  function renderRecipeLines(sourceRecipe: Recipe) {
+    return sortRecipeLines(sourceRecipe.lines).map((line) => (
+      <li key={line.id}>
+        {formatPracticalAmount(line.amount, line.unit)}{" "}
+        {line.itemType === "ingredient"
+          ? ingredientById.get(line.ingredientId ?? "")?.name ?? t("Unknown ingredient")
+          : recipeById.get(line.subRecipeId ?? "")?.name ?? t("Sub-recipe")}
+        {line.notes ? `, ${line.notes}` : ""}
+      </li>
+    ));
+  }
 
   return (
     <article className={`recipe-print ${className ?? ""}`}>
@@ -100,42 +154,38 @@ export function RecipePrintView({ recipe, ingredients, recipes = [], stats, clas
       </div>
 
       <h2>{t("Ingredients")}</h2>
-      <ul>
-        {[...recipe.lines]
-          .sort((a, b) => a.sortOrder - b.sortOrder)
-          .map((line) => (
-            <li key={line.id}>
-              {formatPracticalAmount(line.amount, line.unit)}{" "}
-              {line.itemType === "ingredient"
-                ? ingredientById.get(line.ingredientId ?? "")?.name ?? t("Unknown ingredient")
-                : recipeById.get(line.subRecipeId ?? "")?.name ?? t("Sub-recipe")}
-              {line.notes ? `, ${line.notes}` : ""}
-            </li>
-          ))}
-      </ul>
+      <ul>{renderRecipeLines(recipe)}</ul>
 
       <h2>{t("Procedure")}</h2>
       <ol>
-        {sortedSteps.map((step) => (
-          <li key={step.id}>
-            <p className="recipe-print-step-text">{step.text}</p>
-            {step.time || step.timeMinutes || step.temperature ? (
-              <p>
-                {step.time ? `${step.time.value} ${step.time.unit}` : step.timeMinutes ? `${step.timeMinutes} min` : ""}
-                {(step.time || step.timeMinutes) && step.temperature ? " - " : ""}
-                {step.temperature ? `${step.temperature.value}${step.temperature.unit}` : ""}
-              </p>
-            ) : null}
-            {step.imageBlobId && imageUrls[step.imageBlobId] ? (
-              <img
-                className="recipe-print-step-image"
-                src={imageUrls[step.imageBlobId]}
-                alt={`Step ${step.sortOrder + 1}`}
-              />
-            ) : null}
-          </li>
-        ))}
+        {sortedSteps.map(renderProcedureStep)}
       </ol>
+
+      {subRecipeInstructionSections.length > 0 ? (
+        <section className="recipe-print-subrecipes">
+          <h2>{t("Sub-recipe instructions")}</h2>
+          {subRecipeInstructionSections.map((section) => (
+            <section className="recipe-print-subrecipe" key={section.key}>
+              <h3>{section.recipe.name}</h3>
+              <p className="recipe-print-subrecipe-yield">
+                <strong>{t("Yield")}:</strong> {formatYield(section.recipe.yield, t)}
+              </p>
+              {section.recipe.lines.length > 0 ? (
+                <>
+                  <h4>{t("Ingredients")}</h4>
+                  <ul>{renderRecipeLines(section.recipe)}</ul>
+                </>
+              ) : null}
+              {section.steps.length > 0 ? (
+                <>
+                  <h4>{t("Procedure")}</h4>
+                  <ol>{section.steps.map(renderProcedureStep)}</ol>
+                </>
+              ) : null}
+            </section>
+          ))}
+        </section>
+      ) : null}
 
       {recipe.notes ? (
         <>
@@ -145,4 +195,66 @@ export function RecipePrintView({ recipe, ingredients, recipes = [], stats, clas
       ) : null}
     </article>
   );
+}
+
+interface SubRecipeInstructionSection {
+  key: string;
+  recipe: Recipe;
+  steps: ProcedureStep[];
+}
+
+function collectSubRecipeInstructionSections(recipe: Recipe, recipeById: Map<string, Recipe>) {
+  const sections: SubRecipeInstructionSection[] = [];
+
+  function visit(sourceRecipe: Recipe, recipePath: string[], sectionPath: string) {
+    sortRecipeLines(sourceRecipe.lines).forEach((line) => {
+      if (line.itemType !== "recipe" || !line.subRecipeId || recipePath.includes(line.subRecipeId)) {
+        return;
+      }
+
+      const subRecipe = recipeById.get(line.subRecipeId);
+
+      if (!subRecipe) {
+        return;
+      }
+
+      const scaledSubRecipe = scaleSubRecipeForLine(subRecipe, line);
+      const nextSectionPath = `${sectionPath}/${line.id}:${subRecipe.id}`;
+
+      const steps = sortProcedureSteps(scaledSubRecipe.procedureSteps);
+      if (scaledSubRecipe.lines.length > 0 || steps.length > 0) {
+        sections.push({ key: nextSectionPath, recipe: scaledSubRecipe, steps });
+      }
+
+      visit(scaledSubRecipe, [...recipePath, subRecipe.id], nextSectionPath);
+    });
+  }
+
+  visit(recipe, [recipe.id], recipe.id);
+
+  return sections;
+}
+
+function scaleSubRecipeForLine(subRecipe: Recipe, line: Recipe["lines"][number]) {
+  const targetYield = createSubRecipeTargetYield(subRecipe, line);
+
+  if (!targetYield.ok) {
+    return subRecipe;
+  }
+
+  const scaledSubRecipe = scaleRecipe(subRecipe, targetYield.targetYield);
+
+  if ("ok" in scaledSubRecipe) {
+    return subRecipe;
+  }
+
+  return scaledSubRecipe.recipe;
+}
+
+function sortProcedureSteps(steps: ProcedureStep[]) {
+  return [...steps].sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
+function sortRecipeLines(lines: Recipe["lines"]) {
+  return [...lines].sort((a, b) => a.sortOrder - b.sortOrder);
 }

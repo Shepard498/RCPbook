@@ -21,7 +21,6 @@ export function NumberInput({ value, min, step = "any", onValueChange }: NumberI
     setText(nextText);
 
     if (nextText.trim() === "") {
-      onValueChange(0);
       return;
     }
 
@@ -44,7 +43,7 @@ export function NumberInput({ value, min, step = "any", onValueChange }: NumberI
       onBlur={() => {
         setIsEditing(false);
         if (text.trim() === "") {
-          setText("0");
+          setText(String(value));
         }
       }}
     />

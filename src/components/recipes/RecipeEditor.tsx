@@ -4,6 +4,10 @@ import { db } from "../../db/db";
 import type { Ingredient } from "../../domain/ingredients/ingredientTypes";
 import type { Recipe } from "../../domain/recipes/recipeTypes";
 import { validateRecipe } from "../../domain/recipes/recipeValidation";
+import {
+  getAvailableSubRecipes,
+  getDefaultSubRecipeLineUnit,
+} from "../../domain/recipes/subRecipeMath";
 import { createDefaultYield } from "../../domain/recipes/yieldFormatting";
 import { todayIso } from "../../utils/dates";
 import { createId } from "../../utils/ids";
@@ -27,13 +31,21 @@ export function RecipeEditor({ recipe, ingredients, recipes, onBack, onSaved, on
   const { t } = useI18n();
   const [draft, setDraft] = useState<Recipe>(() => createRecipeDraft(recipe));
   const [isSaving, setIsSaving] = useState(false);
+  const [scrollTarget, setScrollTarget] = useState<{ type: "line" | "step"; id: string } | null>(null);
 
   useEffect(() => {
     setDraft(createRecipeDraft(recipe));
+    setScrollTarget(null);
   }, [recipe]);
 
   const validation = useMemo(() => validateRecipe(draft, recipes), [draft, recipes]);
+  const availableSubRecipes = useMemo(
+    () => getAvailableSubRecipes(draft.id, recipes),
+    [draft.id, recipes],
+  );
   const title = recipe ? t("Edit {name}", { name: recipe.name }) : t("Add recipe");
+  const canAddIngredientLine = ingredients.length > 0;
+  const canAddSubRecipeLine = availableSubRecipes.length > 0;
 
   async function saveRecipe() {
     const normalizedRecipe = normalizeRecipe(draft);
@@ -51,6 +63,74 @@ export function RecipeEditor({ recipe, ingredients, recipes, onBack, onSaved, on
     } finally {
       setIsSaving(false);
     }
+  }
+
+  function addIngredientLine() {
+    const ingredient = ingredients[0];
+    const lineId = createId();
+
+    if (!ingredient) {
+      return;
+    }
+
+    setDraft((current) => ({
+      ...current,
+      lines: [
+        ...current.lines,
+        {
+          id: lineId,
+          itemType: "ingredient",
+          ingredientId: ingredient.id,
+          amount: 1,
+          unit: ingredient.preferredUnit,
+          sortOrder: current.lines.length,
+        },
+      ],
+    }));
+    setScrollTarget({ type: "line", id: lineId });
+  }
+
+  function addSubRecipeLine() {
+    const subRecipe = availableSubRecipes[0];
+    const lineId = createId();
+
+    if (!subRecipe) {
+      return;
+    }
+
+    setDraft((current) => ({
+      ...current,
+      lines: [
+        ...current.lines,
+        {
+          id: lineId,
+          itemType: "recipe",
+          subRecipeId: subRecipe.id,
+          amount: 1,
+          unit: getDefaultSubRecipeLineUnit(subRecipe),
+          sortOrder: current.lines.length,
+        },
+      ],
+    }));
+    setScrollTarget({ type: "line", id: lineId });
+  }
+
+  function addProcedureStep() {
+    const stepId = createId();
+
+    setDraft((current) => ({
+      ...current,
+      procedureSteps: [
+        ...current.procedureSteps,
+        {
+          id: stepId,
+          recipeId: current.id,
+          sortOrder: current.procedureSteps.length,
+          text: "",
+        },
+      ],
+    }));
+    setScrollTarget({ type: "step", id: stepId });
   }
 
   return (
@@ -99,28 +179,52 @@ export function RecipeEditor({ recipe, ingredients, recipes, onBack, onSaved, on
           ingredients={ingredients}
           recipes={recipes}
           currentRecipeId={draft.id}
+          canAddIngredientLine={canAddIngredientLine}
+          canAddSubRecipeLine={canAddSubRecipeLine}
+          scrollToLineId={scrollTarget?.type === "line" ? scrollTarget.id : null}
+          onAddIngredientLine={addIngredientLine}
+          onAddSubRecipeLine={addSubRecipeLine}
           onChange={(lines) => setDraft({ ...draft, lines })}
+          onLineScrolled={(lineId) =>
+            setScrollTarget((current) =>
+              current?.type === "line" && current.id === lineId ? null : current,
+            )
+          }
         />
         <ProcedureStepEditor
-          recipeId={draft.id}
           steps={draft.procedureSteps}
+          scrollToStepId={scrollTarget?.type === "step" ? scrollTarget.id : null}
+          onAddStep={addProcedureStep}
           onChange={(procedureSteps) => setDraft({ ...draft, procedureSteps })}
+          onStepScrolled={(stepId) =>
+            setScrollTarget((current) =>
+              current?.type === "step" && current.id === stepId ? null : current,
+            )
+          }
         />
       </div>
 
       <div className="panel-footer">
-        <div className="editor-actions">
-          <div className="table-actions">
+        <div className="editor-actions recipe-editor-actions">
+          <div className="table-actions recipe-add-actions">
+            <button type="button" disabled={!canAddIngredientLine} onClick={addIngredientLine}>
+              {t("Add ingredient")}
+            </button>
+            <button type="button" disabled={!canAddSubRecipeLine} onClick={addSubRecipeLine}>
+              {t("Add sub-recipe")}
+            </button>
+            <button type="button" onClick={addProcedureStep}>
+              {t("Add step")}
+            </button>
+          </div>
+          <div className="table-actions recipe-save-actions">
             <button type="button" onClick={onCancel}>
               {t("Cancel")}
             </button>
-            <button type="button" onClick={() => window.print()}>
-              {t("Print")}
+            <button type="button" className="primary" disabled={isSaving} onClick={saveRecipe}>
+              {isSaving ? `${t("Saving")}...` : t("Save recipe")}
             </button>
           </div>
-          <button type="button" className="primary" disabled={isSaving} onClick={saveRecipe}>
-            {isSaving ? `${t("Saving")}...` : t("Save recipe")}
-          </button>
         </div>
       </div>
 

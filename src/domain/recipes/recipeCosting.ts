@@ -203,6 +203,8 @@ function calculateRecipeLineCost(
   const priceSummary = getIngredientPriceSummary(
     ingredient,
     purchaseOptionsByIngredient.get(ingredient.id) ?? [],
+    undefined,
+    { assumeMissingDensity: true },
   );
   const warnings = priceSummary.warnings.map((warning) => `${ingredient.name}: ${warning}`);
 
@@ -224,6 +226,7 @@ function calculateRecipeLineCost(
     amount: line.amount,
     fromUnit: line.unit,
     toUnit: priceSummary.baseUnit,
+    assumeMissingDensity: true,
   });
 
   if (!converted.ok) {
@@ -247,7 +250,12 @@ function calculateRecipeLineCost(
     unit: line.unit,
     cost: converted.amount * priceSummary.currentPricePerBaseUnit,
     currency: priceSummary.currency,
-    warnings,
+    warnings: Array.from(
+      new Set([
+        ...warnings,
+        ...converted.warnings.map((warning) => `${ingredient.name}: ${warning}`),
+      ]),
+    ),
   };
 }
 

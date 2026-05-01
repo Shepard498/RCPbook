@@ -20,7 +20,10 @@ export interface IngredientConversionInput {
   amount: number;
   fromUnit: UnitId;
   toUnit: UnitId;
+  assumeMissingDensity?: boolean;
 }
+
+const assumedDensityWarning = "Missing density; assumed 1 g/mL for cost estimate.";
 
 export function convertUnitAmount(amount: number, fromUnit: UnitId, toUnit: UnitId): ConversionResult {
   if (!isUsableAmount(amount)) {
@@ -51,7 +54,7 @@ export function convertUnitAmount(amount: number, fromUnit: UnitId, toUnit: Unit
 }
 
 export function convertIngredientAmount(input: IngredientConversionInput): ConversionResult {
-  const { amount, fromUnit, toUnit, ingredient } = input;
+  const { amount, fromUnit, toUnit, ingredient, assumeMissingDensity = false } = input;
 
   if (!isUsableAmount(amount)) {
     return {
@@ -76,7 +79,13 @@ export function convertIngredientAmount(input: IngredientConversionInput): Conve
     };
   }
 
-  const baseAmount = toBaseCalculationAmount(ingredient, amount, fromUnit, to.dimension);
+  const baseAmount = toBaseCalculationAmount(
+    ingredient,
+    amount,
+    fromUnit,
+    to.dimension,
+    assumeMissingDensity,
+  );
 
   if (!baseAmount.ok) {
     return baseAmount;
@@ -145,14 +154,15 @@ function toBaseCalculationAmount(
   amount: number,
   fromUnit: UnitId,
   targetDimension: UnitDimension,
+  assumeMissingDensity: boolean,
 ): ConversionResult {
   switch (targetDimension) {
     case "mass":
-      return convertToBaseMass(ingredient, amount, fromUnit);
+      return convertToBaseMass(ingredient, amount, fromUnit, assumeMissingDensity);
     case "volume":
-      return convertToBaseVolume(ingredient, amount, fromUnit);
+      return convertToBaseVolume(ingredient, amount, fromUnit, assumeMissingDensity);
     case "count":
-      return convertToBaseCount(ingredient, amount, fromUnit);
+      return convertToBaseCount(ingredient, amount, fromUnit, assumeMissingDensity);
     case "length":
       return {
         ok: false,
@@ -162,7 +172,12 @@ function toBaseCalculationAmount(
   }
 }
 
-function convertToBaseMass(ingredient: Ingredient, amount: number, fromUnit: UnitId): ConversionResult {
+function convertToBaseMass(
+  ingredient: Ingredient,
+  amount: number,
+  fromUnit: UnitId,
+  assumeMissingDensity: boolean,
+): ConversionResult {
   const from = getUnit(fromUnit);
 
   if (from.dimension === "mass") {
@@ -170,7 +185,7 @@ function convertToBaseMass(ingredient: Ingredient, amount: number, fromUnit: Uni
   }
 
   if (from.dimension === "volume") {
-    const density = getDensityInGramsPerMl(ingredient);
+    const density = getDensityForConversion(ingredient, assumeMissingDensity);
 
     if (!density) {
       return {
@@ -183,9 +198,9 @@ function convertToBaseMass(ingredient: Ingredient, amount: number, fromUnit: Uni
     const volumeMl = amount * from.toBaseFactor;
     return {
       ok: true,
-      amount: volumeMl * density,
+      amount: volumeMl * density.value,
       unit: "g",
-      warnings: [],
+      warnings: density.warnings,
     };
   }
 
@@ -215,14 +230,19 @@ function convertToBaseMass(ingredient: Ingredient, amount: number, fromUnit: Uni
   };
 }
 
-function convertToBaseVolume(ingredient: Ingredient, amount: number, fromUnit: UnitId): ConversionResult {
+function convertToBaseVolume(
+  ingredient: Ingredient,
+  amount: number,
+  fromUnit: UnitId,
+  assumeMissingDensity: boolean,
+): ConversionResult {
   const from = getUnit(fromUnit);
 
   if (from.dimension === "volume") {
     return convertUnitAmount(amount, fromUnit, "mL");
   }
 
-  const density = getDensityInGramsPerMl(ingredient);
+  const density = getDensityForConversion(ingredient, assumeMissingDensity);
   if (!density) {
     return {
       ok: false,
@@ -235,9 +255,9 @@ function convertToBaseVolume(ingredient: Ingredient, amount: number, fromUnit: U
     const massGrams = amount * from.toBaseFactor;
     return {
       ok: true,
-      amount: massGrams / density,
+      amount: massGrams / density.value,
       unit: "mL",
-      warnings: [],
+      warnings: density.warnings,
     };
   }
 
@@ -254,9 +274,9 @@ function convertToBaseVolume(ingredient: Ingredient, amount: number, fromUnit: U
 
     return {
       ok: true,
-      amount: (amount * unitWeight) / density,
+      amount: (amount * unitWeight) / density.value,
       unit: "mL",
-      warnings: [],
+      warnings: density.warnings,
     };
   }
 
@@ -267,7 +287,12 @@ function convertToBaseVolume(ingredient: Ingredient, amount: number, fromUnit: U
   };
 }
 
-function convertToBaseCount(ingredient: Ingredient, amount: number, fromUnit: UnitId): ConversionResult {
+function convertToBaseCount(
+  ingredient: Ingredient,
+  amount: number,
+  fromUnit: UnitId,
+  assumeMissingDensity: boolean,
+): ConversionResult {
   const from = getUnit(fromUnit);
 
   if (from.dimension === "count") {
@@ -294,7 +319,7 @@ function convertToBaseCount(ingredient: Ingredient, amount: number, fromUnit: Un
   }
 
   if (from.dimension === "volume") {
-    const density = getDensityInGramsPerMl(ingredient);
+    const density = getDensityForConversion(ingredient, assumeMissingDensity);
 
     if (!density) {
       return {
@@ -307,9 +332,9 @@ function convertToBaseCount(ingredient: Ingredient, amount: number, fromUnit: Un
     const volumeMl = amount * from.toBaseFactor;
     return {
       ok: true,
-      amount: (volumeMl * density) / unitWeight,
+      amount: (volumeMl * density.value) / unitWeight,
       unit: "unit",
-      warnings: [],
+      warnings: density.warnings,
     };
   }
 
@@ -317,6 +342,26 @@ function convertToBaseCount(ingredient: Ingredient, amount: number, fromUnit: Un
     ok: false,
     reason: "Length units cannot be converted to count.",
     warnings: [],
+  };
+}
+
+function getDensityForConversion(ingredient: Ingredient, assumeMissingDensity: boolean) {
+  const density = getDensityInGramsPerMl(ingredient);
+
+  if (density) {
+    return {
+      value: density,
+      warnings: [],
+    };
+  }
+
+  if (!assumeMissingDensity) {
+    return null;
+  }
+
+  return {
+    value: 1,
+    warnings: [assumedDensityWarning],
   };
 }
 

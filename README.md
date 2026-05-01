@@ -15,6 +15,17 @@ npm run dev
 npm run build
 ```
 
+## Browser package
+
+Create a browser-launchable package:
+
+```bash
+npm run package:browser
+```
+
+The package is written to `release/recipe-ingredient-manager-browser`. It includes the built app,
+`launch-windows.cmd`, `launch-mac-linux.sh`, and a tiny local Node server that opens the app in a browser.
+
 ## GitHub
 
 This repository was initialized locally in the workspace. To link it to a GitHub remote, add the remote URL and push:

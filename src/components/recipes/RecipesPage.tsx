@@ -72,6 +72,12 @@ export function RecipesPage() {
     setIsCreating(false);
   }
 
+  function startCreatingRecipe() {
+    setIsCreating(true);
+    setEditingRecipe(null);
+    setSelectedRecipeId(null);
+  }
+
   async function deleteRecipe(recipe: Recipe) {
     await db.recipes.delete(recipe.id);
 
@@ -93,25 +99,17 @@ export function RecipesPage() {
         <div className="page-title">
           <h2>{t("Recipes")}</h2>
         </div>
-        <button
-          type="button"
-          className="primary"
-          onClick={() => {
-            setIsCreating(true);
-            setEditingRecipe(null);
-            setSelectedRecipeId(null);
-          }}
-        >
-          {t("Add recipe")}
-        </button>
       </div>
 
       {error ? <p className="validation-message">{error}</p> : null}
 
       <div className="recipes-layout">
         <section className="panel list-detail-list">
-          <div className="search-row">
+          <div className="search-row list-card-toolbar">
             <SearchInput value={search} onChange={setSearch} placeholder="Cake, cookies, 12..." />
+            <button type="button" className="primary" onClick={startCreatingRecipe}>
+              {t("Add recipe")}
+            </button>
           </div>
           <RecipeList
             recipes={filteredRecipes}

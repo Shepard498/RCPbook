@@ -29,6 +29,10 @@ export interface IngredientPriceSummary {
   warnings: string[];
 }
 
+export interface PriceCalculationOptions {
+  assumeMissingDensity?: boolean;
+}
+
 const stalePriceDays = 90;
 
 export function getIngredientBaseUnit(ingredient: Ingredient) {
@@ -38,6 +42,7 @@ export function getIngredientBaseUnit(ingredient: Ingredient) {
 export function calculatePricePerBaseUnit(
   ingredient: Ingredient,
   purchaseOption: PurchaseOption,
+  options: PriceCalculationOptions = {},
 ): PricePerBaseUnitResult {
   const baseUnit = getIngredientBaseUnit(ingredient);
 
@@ -62,6 +67,7 @@ export function calculatePricePerBaseUnit(
     amount: purchaseOption.amount,
     fromUnit: purchaseOption.unit,
     toUnit: baseUnit,
+    assumeMissingDensity: options.assumeMissingDensity,
   });
 
   if (!converted.ok) {
@@ -98,6 +104,7 @@ export function getIngredientPriceSummary(
   ingredient: Ingredient,
   purchaseOptions: PurchaseOption[],
   now = new Date(),
+  options: PriceCalculationOptions = {},
 ): IngredientPriceSummary {
   const baseUnit = getIngredientBaseUnit(ingredient);
 
@@ -115,7 +122,7 @@ export function getIngredientPriceSummary(
 
   const evaluations = purchaseOptions.map((option) => ({
     option,
-    result: calculatePricePerBaseUnit(ingredient, option),
+    result: calculatePricePerBaseUnit(ingredient, option, options),
   }));
   const validOptions = evaluations.filter((evaluation) => evaluation.result.ok);
   const invalidOptionCount = evaluations.length - validOptions.length;
@@ -125,8 +132,12 @@ export function getIngredientPriceSummary(
     warnings.add("Invalid purchase option");
   }
 
-  if (evaluations.some((evaluation) => evaluation.result.warnings.includes("Missing density"))) {
-    warnings.add("Missing density");
+  if (evaluations.some((evaluation) => evaluation.result.warnings.some(isMissingDensityWarning))) {
+    warnings.add(
+      options.assumeMissingDensity
+        ? "Missing density; assumed 1 g/mL for cost estimate."
+        : "Missing density",
+    );
   }
 
   if (evaluations.some((evaluation) => evaluation.result.warnings.includes("Missing unit weight"))) {
@@ -153,6 +164,10 @@ export function getIngredientPriceSummary(
     warnings.add("Old price");
   }
 
+  for (const warning of selected.result.warnings) {
+    warnings.add(warning);
+  }
+
   return {
     currentPricePerBaseUnit: selected.result.pricePerBaseUnit,
     baseUnit: selected.result.baseUnit,
@@ -162,6 +177,10 @@ export function getIngredientPriceSummary(
     invalidOptionCount,
     warnings: Array.from(warnings),
   };
+}
+
+function isMissingDensityWarning(warning: string) {
+  return warning.includes("Missing density");
 }
 
 export function describePriceSummary(summary: IngredientPriceSummary) {

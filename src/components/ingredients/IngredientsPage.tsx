@@ -134,6 +134,12 @@ export function IngredientsPage({ mode = "ingredients" }: IngredientsPageProps) 
     setIsCreating(false);
   }
 
+  function startCreatingIngredient() {
+    setIsCreating(true);
+    setEditingIngredient(null);
+    setSelectedIngredientId(null);
+  }
+
   async function deleteIngredient(ingredient: Ingredient) {
     await db.transaction("rw", db.ingredients, db.purchaseOptions, async () => {
       await db.ingredients.delete(ingredient.id);
@@ -164,29 +170,21 @@ export function IngredientsPage({ mode = "ingredients" }: IngredientsPageProps) 
         <div className="page-title">
           <h2>{isMiscellaneous ? t("Miscellaneous") : t("Ingredients")}</h2>
         </div>
-        <button
-          type="button"
-          className="primary"
-          onClick={() => {
-            setIsCreating(true);
-            setEditingIngredient(null);
-            setSelectedIngredientId(null);
-          }}
-        >
-          {isMiscellaneous ? t("Add item") : t("Add ingredient")}
-        </button>
       </div>
 
       {error ? <p className="validation-message">{error}</p> : null}
 
       <div className="ingredients-layout">
         <section className="panel list-detail-list">
-          <div className="search-row">
+          <div className="search-row list-card-toolbar">
             <SearchInput
               value={search}
               onChange={setSearch}
               placeholder={isMiscellaneous ? "Bag, box, paper..." : "Flour, dairy, g..."}
             />
+            <button type="button" className="primary" onClick={startCreatingIngredient}>
+              {isMiscellaneous ? t("Add item") : t("Add ingredient")}
+            </button>
           </div>
           <IngredientList
             ingredients={filteredIngredients}

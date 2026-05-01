@@ -569,6 +569,17 @@ th {
   border-bottom: 1px solid var(--border);
 }
 
+.list-card-toolbar {
+  align-items: end;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.list-card-toolbar button {
+  white-space: nowrap;
+}
+
 .app-shell > main > .validation-message {
   flex: 0 0 auto;
   margin: 0;
@@ -615,6 +626,20 @@ th {
 .editor-actions {
   justify-content: space-between;
   padding-top: 14px;
+}
+
+.recipe-editor-actions {
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+}
+
+.recipe-add-actions,
+.recipe-save-actions {
+  flex-wrap: wrap;
+}
+
+.recipe-save-actions {
+  justify-content: flex-end;
 }
 
 .inline-actions {
@@ -915,6 +940,45 @@ body::-webkit-scrollbar-thumb:hover,
   gap: 10px;
 }
 
+.recipe-line-placeholders {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.add-placeholder-card {
+  align-items: center;
+  background: var(--panel-soft);
+  border: 1px dashed var(--border-strong);
+  border-radius: 8px;
+  color: var(--accent-strong);
+  display: flex;
+  font-weight: 800;
+  gap: 10px;
+  justify-content: center;
+  min-height: 72px;
+  padding: 14px;
+  width: 100%;
+}
+
+.add-placeholder-card:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.placeholder-plus {
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 1.3rem;
+  height: 32px;
+  justify-content: center;
+  line-height: 1;
+  width: 32px;
+}
+
 .recipe-line-row {
   align-items: start;
   border: 1px solid var(--border);
@@ -1104,9 +1168,13 @@ body::-webkit-scrollbar-thumb:hover,
 .recipe-preview-controls {
   align-items: end;
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 12px;
   justify-content: flex-end;
+}
+
+.recipe-print-option {
+  align-self: center;
 }
 
 .target-yield-field {
@@ -1154,12 +1222,31 @@ body::-webkit-scrollbar-thumb:hover,
   padding-bottom: 0.35rem;
 }
 
+.recipe-print-preview h3 {
+  font-size: 1.15rem;
+  margin: 1.1rem 0 0.25rem;
+}
+
+.recipe-print-preview h4 {
+  font-size: 0.98rem;
+  margin: 0.85rem 0 0.35rem;
+}
+
 .recipe-print-preview li {
   margin-bottom: 0.75rem;
 }
 
 .recipe-print-step-text {
   white-space: pre-line;
+}
+
+.recipe-print-subrecipe {
+  break-inside: avoid;
+}
+
+.recipe-print-subrecipe-yield {
+  color: var(--muted);
+  margin: 0 0 0.75rem;
 }
 
 .recipe-print-preview .recipe-print-step-image {
@@ -1460,6 +1547,20 @@ body::-webkit-scrollbar-thumb:hover,
     flex-direction: column;
   }
 
+  .list-card-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .list-card-toolbar button {
+    width: 100%;
+  }
+
+  .recipe-add-actions,
+  .recipe-save-actions {
+    align-items: stretch;
+    width: 100%;
+  }
+
   .list-detail-detail .panel-header {
     gap: 0.75rem;
   }
@@ -1473,6 +1574,7 @@ body::-webkit-scrollbar-thumb:hover,
   }
 
   .recipe-line-row,
+  .recipe-line-placeholders,
   .procedure-step-card,
   .batch-row {
     grid-template-columns: 1fr;
@@ -1663,6 +1765,16 @@ body::-webkit-scrollbar-thumb:hover,
     font-size: 30pt;
     margin-top: 0.45in;
     padding-bottom: 0.12in;
+  }
+
+  .recipe-print h3 {
+    font-size: 24pt;
+    margin: 0.35in 0 0.08in;
+  }
+
+  .recipe-print h4 {
+    font-size: 18pt;
+    margin: 0.22in 0 0.08in;
   }
 
   .recipe-print li {
