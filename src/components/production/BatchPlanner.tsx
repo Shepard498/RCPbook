@@ -1,10 +1,17 @@
 import { liveQuery } from "dexie";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { flushSync } from "react-dom";
 import { useI18n } from "../../app/i18n";
+import { useAppPreferences } from "../../app/preferences";
+import { useRouteActions } from "../../app/routeActions";
 import { db } from "../../db/db";
 import type { Ingredient, PurchaseOption } from "../../domain/ingredients/ingredientTypes";
 import type { InventoryItem } from "../../domain/inventory/inventoryTypes";
-import type { BatchPlannerRow } from "../../domain/production/batchPlannerTypes";
+import type {
+  BatchPlannerRecipeResult,
+  BatchPlannerRow,
+  BatchPurchaseMode,
+} from "../../domain/production/batchPlannerTypes";
 import { calculateBatchPlan } from "../../domain/production/batchPlannerMath";
 import type { Recipe } from "../../domain/recipes/recipeTypes";
 import type { YieldDefinition } from "../../domain/recipes/yieldTypes";
@@ -15,22 +22,36 @@ import { formatPracticalAmount } from "../../utils/amountFormatting";
 import { formatCurrency, formatNumber } from "../../utils/numbers";
 import { NumberInput } from "../common/NumberInput";
 import { SearchInput } from "../common/SearchInput";
+import { ConfirmDialog } from "../common/ConfirmDialog";
 import { UnitSelect } from "../common/UnitSelect";
 import { WarningList } from "../common/WarningList";
 import { TargetYieldEditor } from "../calculator/TargetYieldEditor";
+import { RecipePrintView, type RecipePrintStats } from "../recipes/RecipePrintView";
 
 const miscellaneousCategoryId = "cat-packaging";
+export const batchPlannerStorageKey = "recipe-app-batch-planner-rows";
+type BatchPrintMode = "shopping" | "recipes";
 
 export function BatchPlanner() {
   const { t } = useI18n();
+  const { confirmDeletes } = useAppPreferences();
+  const { setAction } = useRouteActions();
   const [activeBatchView, setActiveBatchView] = useState<"targets" | "shopping">("targets");
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [purchaseOptions, setPurchaseOptions] = useState<PurchaseOption[]>([]);
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
-  const [rows, setRows] = useState<BatchPlannerRow[]>([]);
+  const [rows, setRows] = useState<BatchPlannerRow[]>(() => readSavedRows());
   const [search, setSearch] = useState("");
+  const [purchaseMode, setPurchaseMode] = useState<BatchPurchaseMode>("simple");
+  const [showCoveredItems, setShowCoveredItems] = useState(true);
+  const [printMode, setPrintMode] = useState<BatchPrintMode>("shopping");
+  const [pendingDeleteRow, setPendingDeleteRow] = useState<BatchPlannerRow | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    localStorage.setItem(batchPlannerStorageKey, JSON.stringify(rows));
+  }, [rows]);
 
   useEffect(() => {
     const recipeSubscription = liveQuery(() => db.recipes.orderBy("name").toArray()).subscribe({
@@ -56,6 +77,13 @@ export function BatchPlanner() {
       purchaseOptionSubscription.unsubscribe();
       inventorySubscription.unsubscribe();
     };
+  }, []);
+
+  useEffect(() => {
+    const handleAppReset = () => setRows([]);
+
+    window.addEventListener("recipe-app-reset", handleAppReset);
+    return () => window.removeEventListener("recipe-app-reset", handleAppReset);
   }, []);
 
   const recipeById = useMemo(() => new Map(recipes.map((recipe) => [recipe.id, recipe])), [recipes]);
@@ -88,9 +116,42 @@ export function BatchPlanner() {
         ingredients,
         purchaseOptions,
         inventoryItems,
+        purchaseMode,
       }),
-    [ingredients, inventoryItems, purchaseOptions, recipes, rows],
+    [ingredients, inventoryItems, purchaseMode, purchaseOptions, recipes, rows],
   );
+  const hasShoppingList = batchPlan.ingredientTotals.length > 0;
+  const hasPrintableRecipes = batchPlan.recipeResults.some((result) => Boolean(result.scaledRecipe));
+
+  const printBatchDocument = useCallback((mode: BatchPrintMode) => {
+    flushSync(() => setPrintMode(mode));
+    window.print();
+  }, []);
+
+  useEffect(() => {
+    setAction(
+      <div className="batch-header-print-actions">
+        <button
+          type="button"
+          className="print-button"
+          onClick={() => printBatchDocument("shopping")}
+          disabled={!hasShoppingList}
+        >
+          {t("Print shopping list")}
+        </button>
+        <button
+          type="button"
+          className="print-button"
+          onClick={() => printBatchDocument("recipes")}
+          disabled={!hasPrintableRecipes}
+        >
+          {t("Print recipes")}
+        </button>
+      </div>,
+    );
+
+    return () => setAction(null);
+  }, [hasPrintableRecipes, hasShoppingList, printBatchDocument, setAction, t]);
 
   function addRow() {
     const recipe = filteredRecipes[0] ?? recipes[0];
@@ -161,24 +222,20 @@ export function BatchPlanner() {
 
   function deleteRow(rowId: string) {
     setRows(rows.filter((row) => row.id !== rowId));
+    setPendingDeleteRow(null);
+  }
+
+  function requestDeleteRow(row: BatchPlannerRow) {
+    if (confirmDeletes) {
+      setPendingDeleteRow(row);
+      return;
+    }
+
+    deleteRow(row.id);
   }
 
   return (
-    <main id="production">
-      <div className="page-toolbar">
-        <div className="page-title">
-          <h2>{t("Batch Planner")}</h2>
-        </div>
-        <div className="table-actions">
-          <button type="button" className="primary" onClick={addRow} disabled={recipes.length === 0}>
-            {t("Add recipe")}
-          </button>
-          <button type="button" onClick={addItemRow} disabled={miscellaneousItems.length === 0}>
-            {t("Add item")}
-          </button>
-        </div>
-      </div>
-
+    <main id="production" className={`print-mode-${printMode}`}>
       {error ? <p className="validation-message">{error}</p> : null}
 
       <div className="batch-view-tabs" role="tablist" aria-label={t("Batch Planner")}>
@@ -207,8 +264,34 @@ export function BatchPlanner() {
           <div className="panel-header">
             <h2>{t("Production targets")}</h2>
           </div>
+          <div className="batch-list-toolbar">
+            <div className="batch-search-actions">
+              <SearchInput value={search} onChange={setSearch} placeholder="Filter recipe choices..." />
+              <div className="table-actions">
+                <button
+                  type="button"
+                  className="primary add-button"
+                  aria-label={t("Add recipe")}
+                  onClick={addRow}
+                  disabled={recipes.length === 0}
+                >
+                  <span className="desktop-button-label">{t("Add recipe")}</span>
+                  <span className="mobile-plus-label" aria-hidden="true">+</span>
+                </button>
+                <button
+                  type="button"
+                  className="add-button"
+                  aria-label={t("Add item")}
+                  onClick={addItemRow}
+                  disabled={miscellaneousItems.length === 0}
+                >
+                  <span className="desktop-button-label">{t("Add item")}</span>
+                  <span className="mobile-plus-label" aria-hidden="true">+</span>
+                </button>
+              </div>
+            </div>
+          </div>
           <div className="panel-body batch-controls">
-            <SearchInput value={search} onChange={setSearch} placeholder="Filter recipe choices..." />
 
             {rows.length === 0 ? (
               <div className="empty-state">{t("Add recipes to build a production plan.")}</div>
@@ -294,7 +377,7 @@ export function BatchPlanner() {
                         className="icon-button danger"
                         aria-label={t("Delete batch row")}
                         title={t("Delete batch row")}
-                        onClick={() => deleteRow(row.id)}
+                        onClick={() => requestDeleteRow(row)}
                       >
                         X
                       </button>
@@ -308,33 +391,76 @@ export function BatchPlanner() {
 
         <BatchPlanSummary
           batchPlan={batchPlan}
+          purchaseMode={purchaseMode}
+          showCoveredItems={showCoveredItems}
           className={activeBatchView === "shopping" ? "batch-view-active" : "batch-view-inactive"}
+          onPurchaseModeChange={setPurchaseMode}
+          onShowCoveredItemsChange={setShowCoveredItems}
         />
       </div>
+      <BatchRecipePrintView recipeResults={batchPlan.recipeResults} ingredients={ingredients} recipes={recipes} />
+      {pendingDeleteRow ? (
+        <ConfirmDialog
+          title={t("Delete batch row")}
+          message={t("Delete batch row? This cannot be undone.")}
+          onCancel={() => setPendingDeleteRow(null)}
+          onConfirm={() => deleteRow(pendingDeleteRow.id)}
+        />
+      ) : null}
     </main>
   );
 }
 
 function BatchPlanSummary({
   batchPlan,
+  purchaseMode,
+  showCoveredItems,
   className = "",
+  onPurchaseModeChange,
+  onShowCoveredItemsChange,
 }: {
   batchPlan: ReturnType<typeof calculateBatchPlan>;
+  purchaseMode: BatchPurchaseMode;
+  showCoveredItems: boolean;
   className?: string;
+  onPurchaseModeChange: (purchaseMode: BatchPurchaseMode) => void;
+  onShowCoveredItemsChange: (showCoveredItems: boolean) => void;
 }) {
   const { t } = useI18n();
+  const visibleIngredientTotals = showCoveredItems
+    ? batchPlan.ingredientTotals
+    : batchPlan.ingredientTotals.filter((total) => total.requiredAmount > 0 || total.warnings.length > 0);
 
   return (
     <section className={`panel batch-plan-result ${className}`}>
       <div className="panel-header">
-        <div>
+        <div className="batch-summary-title">
           <p className="eyebrow">{t("Production plan")}</p>
           <h2>{t("Shopping list")}</h2>
         </div>
         <div className="batch-summary-actions">
-          <button type="button" className="print-button" onClick={() => window.print()} disabled={batchPlan.ingredientTotals.length === 0}>
-            {t("Print")}
-          </button>
+          <div className="batch-summary-controls print-hidden">
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={showCoveredItems}
+                onChange={(event) => onShowCoveredItemsChange(event.target.checked)}
+              />
+              {t("Show covered items")}
+            </label>
+            <label className="compact-field">
+              {t("Purchase logic")}
+              <select
+                value={purchaseMode}
+                onChange={(event) =>
+                  onPurchaseModeChange(event.target.value === "multiOption" ? "multiOption" : "simple")
+                }
+              >
+                <option value="simple">{t("Simple purchase")}</option>
+                <option value="multiOption">{t("Multi-option purchase")}</option>
+              </select>
+            </label>
+          </div>
           <div className="batch-total-cost">
             <span className="muted">{t("Total cost")}</span>
             <strong>{formatOptionalCost(batchPlan.totalCost, batchPlan.currency, t)}</strong>
@@ -353,24 +479,24 @@ function BatchPlanSummary({
             <div className="empty-state">{t("No production targets yet.")}</div>
           ) : (
             <div className="table-scroll">
-              <table>
+              <table className="batch-recipes-table">
                 <thead>
                   <tr>
-                    <th>{t("Recipe")}</th>
+                    <th className="batch-recipe-name-column">{t("Recipe")}</th>
                     <th>{t("Target")}</th>
-                    <th>{t("Scale")}</th>
+                    <th className="batch-recipe-scale-column">{t("Scale")}</th>
                     <th>{t("Cost")}</th>
-                    <th>{t("Warnings")}</th>
+                    <th className="batch-recipe-warnings-column">{t("Warnings")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {batchPlan.recipeResults.map((result) => (
                     <tr key={result.rowId}>
-                      <td>
+                      <td className="batch-recipe-name-column">
                         <strong>{result.recipeName}</strong>
                       </td>
                       <td>{formatYield(result.targetYield, t)}</td>
-                      <td>
+                      <td className="batch-recipe-scale-column">
                         {result.scaledRecipe ? formatNumber(result.scaledRecipe.scaleFactor, 3) : t("Cannot scale")}
                       </td>
                       <td>
@@ -378,7 +504,7 @@ function BatchPlanSummary({
                           ? formatCurrency(result.costResult.totalCost, result.costResult.currency)
                           : t("Incomplete")}
                       </td>
-                      <td>
+                      <td className="batch-recipe-warnings-column">
                         <WarningList warnings={result.warnings} />
                       </td>
                     </tr>
@@ -393,32 +519,34 @@ function BatchPlanSummary({
           <h3>{t("Total ingredients needed")}</h3>
           {batchPlan.ingredientTotals.length === 0 ? (
             <div className="empty-state">{t("Ingredient totals will appear here.")}</div>
+          ) : visibleIngredientTotals.length === 0 ? (
+            <div className="empty-state">{t("No shopping-list items match the current filters.")}</div>
           ) : (
             <div className="table-scroll">
-              <table>
+              <table className="batch-ingredients-table">
                 <thead>
                   <tr>
-                    <th>{t("Ingredient")}</th>
-                    <th>{t("Total")}</th>
-                    <th>{t("Inventory")}</th>
-                    <th>{t("Needed cost")}</th>
+                    <th className="batch-ingredient-name-column">{t("Ingredient")}</th>
+                    <th className="batch-ingredient-total-column">{t("Total")}</th>
+                    <th className="batch-ingredient-inventory-column">{t("Inventory")}</th>
+                    <th className="batch-ingredient-needed-cost-column">{t("Needed cost")}</th>
                     <th>{t("Actual purchase")}</th>
                     <th>{t("Purchase cost")}</th>
-                    <th>{t("Warnings")}</th>
+                    <th className="batch-ingredient-warnings-column">{t("Warnings")}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {batchPlan.ingredientTotals.map((total) => (
+                  {visibleIngredientTotals.map((total) => (
                     <tr key={total.ingredientId}>
-                      <td>
+                      <td className="batch-ingredient-name-column">
                         <strong>{total.ingredientName}</strong>
                       </td>
-                      <td>{formatPracticalAmount(total.amount, total.unit)}</td>
-                      <td>{formatPracticalAmount(total.inventoryAmount, total.unit)}</td>
-                      <td>{formatOptionalCost(total.requiredCost, total.requiredCostCurrency, t)}</td>
+                      <td className="batch-ingredient-total-column">{formatPracticalAmount(total.amount, total.unit)}</td>
+                      <td className="batch-ingredient-inventory-column">{formatPracticalAmount(total.inventoryAmount, total.unit)}</td>
+                      <td className="batch-ingredient-needed-cost-column">{formatOptionalCost(total.requiredCost, total.requiredCostCurrency, t)}</td>
                       <td>{formatPurchasePlan(total, t)}</td>
                       <td>{formatOptionalCost(total.purchaseCost, total.purchaseCostCurrency, t)}</td>
-                      <td>
+                      <td className="batch-ingredient-warnings-column">
                         <WarningList warnings={total.warnings} />
                       </td>
                     </tr>
@@ -433,8 +561,58 @@ function BatchPlanSummary({
   );
 }
 
+function BatchRecipePrintView({
+  recipeResults,
+  ingredients,
+  recipes,
+}: {
+  recipeResults: BatchPlannerRecipeResult[];
+  ingredients: Ingredient[];
+  recipes: Recipe[];
+}) {
+  const { t } = useI18n();
+
+  return (
+    <div className="batch-recipe-print" aria-hidden="true">
+      {recipeResults.map((result) => {
+        if (!result.scaledRecipe) {
+          return null;
+        }
+
+        return (
+          <RecipePrintView
+            key={result.rowId}
+            recipe={result.scaledRecipe.recipe}
+            ingredients={ingredients}
+            recipes={recipes}
+            stats={getBatchRecipePrintStats(result, t)}
+            className="recipe-print-preview batch-recipe-print-item"
+            includeSubRecipes
+          />
+        );
+      })}
+    </div>
+  );
+}
+
 function cloneYield(yieldDefinition: YieldDefinition): YieldDefinition {
   return JSON.parse(JSON.stringify(yieldDefinition)) as YieldDefinition;
+}
+
+function readSavedRows(): BatchPlannerRow[] {
+  try {
+    const savedRows = localStorage.getItem(batchPlannerStorageKey);
+
+    if (!savedRows) {
+      return [];
+    }
+
+    const parsedRows = JSON.parse(savedRows);
+
+    return Array.isArray(parsedRows) ? (parsedRows as BatchPlannerRow[]) : [];
+  } catch {
+    return [];
+  }
 }
 
 function formatPurchasePlan(
@@ -451,10 +629,53 @@ function formatPurchasePlan(
     return t("Not available");
   }
 
-  return `${formatNumber(purchasePlan.packageCount, 0)} x ${formatPracticalAmount(
-    purchasePlan.packageAmount,
-    purchasePlan.packageUnit,
-  )} = ${formatPracticalAmount(purchasePlan.purchasedAmount, purchasePlan.purchasedUnit)}`;
+  return (
+    <div className="purchase-plan-lines">
+      {purchasePlan.lines.map((line) => (
+        <div className="purchase-plan-line" key={line.purchaseOptionId}>
+          {formatNumber(line.packageCount, 0)} x {formatPracticalAmount(line.packageAmount, line.packageUnit)}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function getBatchRecipePrintStats(
+  result: BatchPlannerRecipeResult,
+  t: (key: string) => string,
+): RecipePrintStats {
+  const costResult = result.costResult;
+  const recipeYield = result.scaledRecipe?.recipe.yield ?? result.targetYield;
+
+  return {
+    totalCost:
+      costResult?.totalCost !== null && costResult?.currency
+        ? formatCurrency(costResult.totalCost, costResult.currency)
+        : t("Incomplete"),
+    costPerOutput: getRecipeCostPerOutput(recipeYield, costResult, t),
+  };
+}
+
+function getRecipeCostPerOutput(
+  targetYield: YieldDefinition,
+  costResult: BatchPlannerRecipeResult["costResult"],
+  t: (key: string) => string,
+) {
+  if (!costResult || costResult.totalCost === null || !costResult.currency) {
+    return t("Incomplete");
+  }
+
+  if (targetYield.type !== "count" && targetYield.type !== "servings") {
+    return t("Not available");
+  }
+
+  if (!Number.isFinite(targetYield.amount) || targetYield.amount <= 0) {
+    return t("Incomplete");
+  }
+
+  return `${formatCurrency(costResult.totalCost / targetYield.amount, costResult.currency)}/${
+    targetYield.type === "count" ? targetYield.label || "unit" : targetYield.label || "serving"
+  }`;
 }
 
 function formatOptionalCost(cost: number | null, currency: string | null, t: (key: string) => string) {

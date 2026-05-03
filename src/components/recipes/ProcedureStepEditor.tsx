@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useI18n } from "../../app/i18n";
+import { useAppPreferences } from "../../app/preferences";
 import type { ProcedureStep } from "../../domain/recipes/recipeTypes";
 import { ProcedureStepImageInput } from "./ProcedureStepImageInput";
 
@@ -19,6 +20,7 @@ export function ProcedureStepEditor({
   onStepScrolled,
 }: ProcedureStepEditorProps) {
   const { t } = useI18n();
+  const { confirmDeletes } = useAppPreferences();
   const stepRefs = useRef(new Map<string, HTMLDivElement>());
   const sortedSteps = [...steps].sort((a, b) => a.sortOrder - b.sortOrder);
 
@@ -46,6 +48,10 @@ export function ProcedureStepEditor({
   }
 
   function deleteStep(id: string) {
+    if (confirmDeletes && !window.confirm(t("Delete procedure step? This cannot be undone."))) {
+      return;
+    }
+
     onChange(renumber(steps.filter((step) => step.id !== id)));
   }
 

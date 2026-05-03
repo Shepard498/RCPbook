@@ -21,6 +21,7 @@ interface IngredientPreviewProps {
   eyebrowLabel?: string;
   onBack?: () => void;
   onEdit: (ingredient: Ingredient) => void;
+  onDelete: (ingredient: Ingredient) => void;
 }
 
 export function IngredientPreview({
@@ -30,6 +31,7 @@ export function IngredientPreview({
   eyebrowLabel = "Ingredient",
   onBack,
   onEdit,
+  onDelete,
 }: IngredientPreviewProps) {
   const { t } = useI18n();
   const category = ingredient.categoryId
@@ -40,14 +42,19 @@ export function IngredientPreview({
   return (
     <aside className="panel ingredient-preview-panel">
       <div className="panel-header">
-        {onBack ? <MobileBackButton onClick={onBack} /> : null}
         <div>
           <p className="eyebrow">{t(eyebrowLabel)}</p>
           <h2>{ingredient.name}</h2>
         </div>
-        <button type="button" onClick={() => onEdit(ingredient)}>
-          {t("Edit")}
-        </button>
+        <div className="table-actions detail-header-actions">
+          <button type="button" onClick={() => onEdit(ingredient)}>
+            {t("Edit")}
+          </button>
+          <button type="button" className="danger" onClick={() => onDelete(ingredient)}>
+            {t("Delete")}
+          </button>
+        </div>
+        {onBack ? <MobileBackButton onClick={onBack} /> : null}
       </div>
 
       <div className="panel-body ingredient-preview-body">

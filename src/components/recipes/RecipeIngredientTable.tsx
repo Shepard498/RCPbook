@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useI18n } from "../../app/i18n";
+import { useAppPreferences } from "../../app/preferences";
 import type { Ingredient } from "../../domain/ingredients/ingredientTypes";
 import type { Recipe, RecipeLine } from "../../domain/recipes/recipeTypes";
 import {
@@ -39,6 +40,7 @@ export function RecipeIngredientTable({
   onLineScrolled,
 }: RecipeIngredientTableProps) {
   const { t } = useI18n();
+  const { confirmDeletes } = useAppPreferences();
   const lineRefs = useRef(new Map<string, HTMLDivElement>());
   const ingredientById = new Map(ingredients.map((ingredient) => [ingredient.id, ingredient]));
   const recipeById = new Map(recipes.map((recipe) => [recipe.id, recipe]));
@@ -69,6 +71,10 @@ export function RecipeIngredientTable({
   }
 
   function deleteLine(id: string) {
+    if (confirmDeletes && !window.confirm(t("Delete recipe line? This cannot be undone."))) {
+      return;
+    }
+
     onChange(renumber(lines.filter((line) => line.id !== id)));
   }
 

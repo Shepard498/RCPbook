@@ -26,7 +26,7 @@ export function RecipeList({ recipes, selectedRecipeId, onSelect, onEdit, onDele
             <th>{t("Name")}</th>
             <th>{t("Yield")}</th>
             <th>{t("Updated")}</th>
-            <th aria-label={t("Actions")} />
+            <th className="mobile-hidden-column" aria-label={t("Actions")} />
           </tr>
         </thead>
         <tbody>
@@ -43,7 +43,7 @@ export function RecipeList({ recipes, selectedRecipeId, onSelect, onEdit, onDele
               </td>
               <td>{formatYield(recipe.yield, t)}</td>
               <td>{t(formatDate(recipe.updatedAt))}</td>
-              <td>
+              <td className="mobile-hidden-column">
                 <div className="inline-actions">
                   <button
                     type="button"

@@ -42,12 +42,12 @@ export function IngredientList({
         <thead>
           <tr>
             <th>{t("Name")}</th>
-            <th>{t("Category")}</th>
-            <th>{t("Preferred unit")}</th>
-            <th>{t("Current usable price")}</th>
-            <th>{t("Last updated")}</th>
+            <th className="mobile-hidden-column">{t("Category")}</th>
+            <th className="mobile-hidden-column">{t("Preferred unit")}</th>
+            <th className="mobile-hidden-column">{t("Current usable price")}</th>
+            <th className="mobile-hidden-column">{t("Last updated")}</th>
             <th>{t("Warnings")}</th>
-            <th aria-label={t("Actions")} />
+            <th className="mobile-hidden-column" aria-label={t("Actions")} />
           </tr>
         </thead>
         <tbody>
@@ -65,18 +65,18 @@ export function IngredientList({
                   <div className="ingredient-name">{ingredient.name}</div>
                   {ingredient.notes ? <div className="muted">{ingredient.notes}</div> : null}
                 </td>
-                <td>
+                <td className="mobile-hidden-column">
                   {ingredient.categoryId
                     ? t(categoryById.get(ingredient.categoryId)?.name ?? "Unknown")
                     : t("None")}
                 </td>
-                <td>{ingredient.preferredUnit}</td>
-                <td className="price-cell">{t(describePriceSummary(priceSummary))}</td>
-                <td>{t(formatDate(priceSummary.lastUpdated ?? undefined))}</td>
+                <td className="mobile-hidden-column">{ingredient.preferredUnit}</td>
+                <td className="price-cell mobile-hidden-column">{t(describePriceSummary(priceSummary))}</td>
+                <td className="mobile-hidden-column">{t(formatDate(priceSummary.lastUpdated ?? undefined))}</td>
                 <td>
                   <WarningList warnings={priceSummary.warnings} />
                 </td>
-                <td>
+                <td className="mobile-hidden-column">
                   <div className="inline-actions">
                     <button
                       type="button"

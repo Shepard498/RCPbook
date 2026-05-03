@@ -147,7 +147,7 @@ export function RecipeEditor({ recipe, ingredients, recipes, onBack, onSaved, on
         <div className="form-grid">
           <label>
             {t("Name")}
-            <input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} autoFocus />
+            <input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
           </label>
 
           <label className="checkbox-label recipe-toggle">

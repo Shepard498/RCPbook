@@ -153,7 +153,6 @@ export function IngredientEditor({
             <input
               value={draft.name}
               onChange={(event) => setDraft({ ...draft, name: event.target.value })}
-              autoFocus
             />
           </label>
 

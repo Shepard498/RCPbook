@@ -93,12 +93,6 @@ export function RecipeScaler() {
 
   return (
     <main id="calculator">
-      <div className="page-toolbar">
-        <div className="page-title">
-          <h2>{t("Recipe Scaler")}</h2>
-        </div>
-      </div>
-
       {error ? <p className="validation-message">{error}</p> : null}
 
       <div className="calculator-layout">

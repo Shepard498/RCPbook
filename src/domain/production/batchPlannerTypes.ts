@@ -3,6 +3,8 @@ import type { YieldDefinition } from "../recipes/yieldTypes";
 import type { CostResult } from "../recipes/recipeCosting";
 import type { ScaledRecipe } from "../recipes/scaling";
 
+export type BatchPurchaseMode = "simple" | "multiOption";
+
 export type BatchPlannerRow = BatchPlannerRecipeRow | BatchPlannerItemRow;
 
 export interface BatchPlannerRecipeRow {
@@ -46,6 +48,12 @@ export interface BatchIngredientTotal {
 }
 
 export interface BatchIngredientPurchasePlan {
+  lines: BatchIngredientPurchasePlanLine[];
+  totalPurchasedAmount: number;
+  totalPurchasedUnit: UnitId;
+}
+
+export interface BatchIngredientPurchasePlanLine {
   purchaseOptionId: string;
   packageCount: number;
   packageAmount: number;

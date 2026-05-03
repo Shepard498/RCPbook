@@ -1,6 +1,8 @@
 import { liveQuery } from "dexie";
 import { useEffect, useMemo, useState } from "react";
 import { useI18n } from "../../app/i18n";
+import { useAppPreferences } from "../../app/preferences";
+import { useInAppBackClose } from "../../app/useInAppBackClose";
 import { db } from "../../db/db";
 import type {
   Ingredient,
@@ -26,6 +28,7 @@ interface IngredientsPageProps {
 
 export function IngredientsPage({ mode = "ingredients" }: IngredientsPageProps) {
   const { t } = useI18n();
+  const { confirmDeletes } = useAppPreferences();
   const isMiscellaneous = mode === "miscellaneous";
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [categories, setCategories] = useState<IngredientCategory[]>([]);
@@ -128,6 +131,8 @@ export function IngredientsPage({ mode = "ingredients" }: IngredientsPageProps) 
     : [];
   const hasActiveDetail = isCreating || Boolean(editingIngredient) || Boolean(selectedIngredient);
 
+  useInAppBackClose(hasActiveDetail, returnToList, isMiscellaneous ? "miscellaneous-detail" : "ingredients-detail");
+
   function returnToList() {
     setSelectedIngredientId(null);
     setEditingIngredient(null);
@@ -161,17 +166,20 @@ export function IngredientsPage({ mode = "ingredients" }: IngredientsPageProps) 
     setPendingDeleteIngredient(null);
   }
 
+  function requestDeleteIngredient(ingredient: Ingredient) {
+    if (confirmDeletes) {
+      setPendingDeleteIngredient(ingredient);
+      return;
+    }
+
+    void deleteIngredient(ingredient);
+  }
+
   return (
     <main
       id={isMiscellaneous ? "miscellaneous" : "ingredients"}
       className={`list-detail-page ${hasActiveDetail ? "has-active-detail" : ""}`}
     >
-      <div className="page-toolbar">
-        <div className="page-title">
-          <h2>{isMiscellaneous ? t("Miscellaneous") : t("Ingredients")}</h2>
-        </div>
-      </div>
-
       {error ? <p className="validation-message">{error}</p> : null}
 
       <div className="ingredients-layout">
@@ -182,8 +190,14 @@ export function IngredientsPage({ mode = "ingredients" }: IngredientsPageProps) 
               onChange={setSearch}
               placeholder={isMiscellaneous ? "Bag, box, paper..." : "Flour, dairy, g..."}
             />
-            <button type="button" className="primary" onClick={startCreatingIngredient}>
-              {isMiscellaneous ? t("Add item") : t("Add ingredient")}
+            <button
+              type="button"
+              className="primary add-button"
+              aria-label={isMiscellaneous ? t("Add item") : t("Add ingredient")}
+              onClick={startCreatingIngredient}
+            >
+              <span className="desktop-button-label">{isMiscellaneous ? t("Add item") : t("Add ingredient")}</span>
+              <span className="mobile-plus-label" aria-hidden="true">+</span>
             </button>
           </div>
           <IngredientList
@@ -202,7 +216,7 @@ export function IngredientsPage({ mode = "ingredients" }: IngredientsPageProps) 
               setEditingIngredient(ingredient);
               setIsCreating(false);
             }}
-            onDelete={setPendingDeleteIngredient}
+            onDelete={requestDeleteIngredient}
           />
         </section>
 
@@ -240,6 +254,7 @@ export function IngredientsPage({ mode = "ingredients" }: IngredientsPageProps) 
                 setEditingIngredient(ingredient);
                 setIsCreating(false);
               }}
+              onDelete={requestDeleteIngredient}
             />
           ) : (
             <aside className="panel">

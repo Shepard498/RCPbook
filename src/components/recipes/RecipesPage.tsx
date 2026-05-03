@@ -1,6 +1,9 @@
 import { liveQuery } from "dexie";
 import { useEffect, useMemo, useState } from "react";
 import { useI18n } from "../../app/i18n";
+import { useAppPreferences } from "../../app/preferences";
+import { useRouteActions } from "../../app/routeActions";
+import { useInAppBackClose } from "../../app/useInAppBackClose";
 import { db } from "../../db/db";
 import type { Ingredient, PurchaseOption } from "../../domain/ingredients/ingredientTypes";
 import type { Recipe } from "../../domain/recipes/recipeTypes";
@@ -13,6 +16,8 @@ import { RecipePreview } from "./RecipePreview";
 
 export function RecipesPage() {
   const { t } = useI18n();
+  const { confirmDeletes } = useAppPreferences();
+  const { setAction } = useRouteActions();
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [purchaseOptions, setPurchaseOptions] = useState<PurchaseOption[]>([]);
@@ -65,6 +70,24 @@ export function RecipesPage() {
     [recipes, selectedRecipeId],
   );
   const hasActiveDetail = isCreating || Boolean(editingRecipe) || Boolean(selectedRecipe);
+  const canPrintRecipe = Boolean(selectedRecipe) && !isCreating && !editingRecipe;
+
+  useInAppBackClose(hasActiveDetail, returnToList, "recipes-detail");
+
+  useEffect(() => {
+    setAction(
+      <button
+        type="button"
+        className="print-button"
+        disabled={!canPrintRecipe}
+        onClick={() => window.print()}
+      >
+        {t("Print")}
+      </button>,
+    );
+
+    return () => setAction(null);
+  }, [canPrintRecipe, setAction, t]);
 
   function returnToList() {
     setSelectedRecipeId(null);
@@ -93,22 +116,26 @@ export function RecipesPage() {
     setPendingDeleteRecipe(null);
   }
 
+  function requestDeleteRecipe(recipe: Recipe) {
+    if (confirmDeletes) {
+      setPendingDeleteRecipe(recipe);
+      return;
+    }
+
+    void deleteRecipe(recipe);
+  }
+
   return (
     <main id="recipes" className={`list-detail-page ${hasActiveDetail ? "has-active-detail" : ""}`}>
-      <div className="page-toolbar">
-        <div className="page-title">
-          <h2>{t("Recipes")}</h2>
-        </div>
-      </div>
-
       {error ? <p className="validation-message">{error}</p> : null}
 
       <div className="recipes-layout">
         <section className="panel list-detail-list">
           <div className="search-row list-card-toolbar">
             <SearchInput value={search} onChange={setSearch} placeholder="Cake, cookies, 12..." />
-            <button type="button" className="primary" onClick={startCreatingRecipe}>
-              {t("Add recipe")}
+            <button type="button" className="primary add-button" aria-label={t("Add recipe")} onClick={startCreatingRecipe}>
+              <span className="desktop-button-label">{t("Add recipe")}</span>
+              <span className="mobile-plus-label" aria-hidden="true">+</span>
             </button>
           </div>
           <RecipeList
@@ -124,7 +151,7 @@ export function RecipesPage() {
               setEditingRecipe(recipe);
               setIsCreating(false);
             }}
-            onDelete={setPendingDeleteRecipe}
+            onDelete={requestDeleteRecipe}
           />
         </section>
 
@@ -157,6 +184,7 @@ export function RecipesPage() {
                 setSelectedRecipeId(recipe.id);
                 setEditingRecipe(recipe);
               }}
+              onDelete={requestDeleteRecipe}
             />
           ) : (
             <aside className="panel">

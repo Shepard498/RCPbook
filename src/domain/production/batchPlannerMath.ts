@@ -10,6 +10,7 @@ import type { UnitId } from "../units/unitTypes";
 import type {
   BatchIngredientTotal,
   BatchIngredientPurchasePlan,
+  BatchPurchaseMode,
   BatchPlannerItemRow,
   BatchPlannerRecipeResult,
   BatchPlannerRow,
@@ -22,12 +23,14 @@ export function calculateBatchPlan({
   ingredients,
   purchaseOptions,
   inventoryItems = [],
+  purchaseMode = "simple",
 }: {
   rows: BatchPlannerRow[];
   recipes: Recipe[];
   ingredients: Ingredient[];
   purchaseOptions: PurchaseOption[];
   inventoryItems?: InventoryItem[];
+  purchaseMode?: BatchPurchaseMode;
 }): BatchPlanResult {
   const recipeById = new Map(recipes.map((recipe) => [recipe.id, recipe]));
   const ingredientById = new Map(ingredients.map((ingredient) => [ingredient.id, ingredient]));
@@ -43,6 +46,7 @@ export function calculateBatchPlan({
     recipeById,
     purchaseOptions,
     inventoryItems,
+    purchaseMode,
   );
   const costSummary = calculateBatchPurchaseCost(ingredientTotals);
   const warnings = Array.from(
@@ -124,6 +128,7 @@ function aggregateIngredientTotals(
   recipeById: Map<string, Recipe>,
   purchaseOptions: PurchaseOption[],
   inventoryItems: InventoryItem[],
+  purchaseMode: BatchPurchaseMode,
 ) {
   const totals = new Map<string, BatchIngredientTotal>();
   const purchaseOptionsByIngredient = groupPurchaseOptions(purchaseOptions);
@@ -170,6 +175,7 @@ function aggregateIngredientTotals(
                 amount: requiredAmount,
               },
               purchaseOptionsByIngredient.get(ingredient.id) ?? [],
+              purchaseMode,
             )
           : { purchasePlan: null, warnings: [] };
       const purchaseCostResult =
@@ -405,6 +411,7 @@ function calculatePurchasePlanForTotal(
   ingredient: Ingredient,
   total: BatchIngredientTotal,
   purchaseOptions: PurchaseOption[],
+  purchaseMode: BatchPurchaseMode,
 ): { purchasePlan: BatchIngredientPurchasePlan | null; warnings: string[] } {
   if (purchaseOptions.length === 0) {
     return {
@@ -413,6 +420,18 @@ function calculatePurchasePlanForTotal(
     };
   }
 
+  if (purchaseMode === "multiOption") {
+    return calculateMultiOptionPurchasePlanForTotal(ingredient, total, purchaseOptions);
+  }
+
+  return calculateSimplePurchasePlanForTotal(ingredient, total, purchaseOptions);
+}
+
+function calculateSimplePurchasePlanForTotal(
+  ingredient: Ingredient,
+  total: BatchIngredientTotal,
+  purchaseOptions: PurchaseOption[],
+): { purchasePlan: BatchIngredientPurchasePlan | null; warnings: string[] } {
   const evaluations = purchaseOptions.map((option) => evaluatePurchasePlanOption(ingredient, total, option));
   const validEvaluations = evaluations.filter(
     (evaluation): evaluation is PurchasePlanEvaluation & {
@@ -499,16 +518,263 @@ function evaluatePurchasePlanOption(
   return {
     option,
     purchasePlan: {
-      purchaseOptionId: option.id,
-      packageCount,
-      packageAmount: option.amount,
-      packageUnit: option.unit,
-      purchasedAmount,
-      purchasedUnit: option.unit,
+      lines: [
+        {
+          purchaseOptionId: option.id,
+          packageCount,
+          packageAmount: option.amount,
+          packageUnit: option.unit,
+          purchasedAmount,
+          purchasedUnit: option.unit,
+        },
+      ],
+      totalPurchasedAmount: convertedPurchased.amount,
+      totalPurchasedUnit: total.unit,
     },
     overbuyAmount: Math.max(0, convertedPurchased.amount - total.amount),
     warnings: convertedNeeded.warnings,
   };
+}
+
+interface MultiOptionEvaluation {
+  option: PurchaseOption;
+  amountInTotalUnit: number;
+  weight: number;
+  warnings: string[];
+}
+
+interface MultiOptionEvaluationResult {
+  evaluation: MultiOptionEvaluation | null;
+  warnings: string[];
+}
+
+interface MultiOptionPlanState {
+  amount: number;
+  cost: number;
+  counts: number[];
+  packageCount: number;
+}
+
+const multiOptionMaxStateCount = 30000;
+const purchaseEpsilon = 0.000001;
+
+function calculateMultiOptionPurchasePlanForTotal(
+  ingredient: Ingredient,
+  total: BatchIngredientTotal,
+  purchaseOptions: PurchaseOption[],
+): { purchasePlan: BatchIngredientPurchasePlan | null; warnings: string[] } {
+  const evaluations = purchaseOptions.map((option) => evaluateMultiOption(ingredient, total, option));
+  const validEvaluations = evaluations
+    .filter(
+      (result): result is MultiOptionEvaluationResult & { evaluation: MultiOptionEvaluation } =>
+        result.evaluation !== null,
+    )
+    .map((result) => result.evaluation);
+  const evaluationWarnings = evaluations.flatMap((evaluation) => evaluation.warnings);
+
+  if (validEvaluations.length === 0) {
+    return {
+      purchasePlan: null,
+      warnings: Array.from(
+        new Set([
+          "Invalid purchase option",
+          ...evaluationWarnings,
+        ]),
+      ),
+    };
+  }
+
+  const currencies = new Set(validEvaluations.map((evaluation) => normalizePurchaseCurrency(evaluation.option.currency)));
+
+  if (currencies.size > 1) {
+    return {
+      purchasePlan: null,
+      warnings: ["Purchase options use multiple currencies, so multi-option purchase cannot compare costs."],
+    };
+  }
+
+  const quantum = getMultiOptionQuantum(
+    total.amount,
+    validEvaluations.map((evaluation) => evaluation.amountInTotalUnit),
+  );
+  const targetWeight = Math.ceil(total.amount / quantum);
+  const maxWeight =
+    targetWeight +
+    Math.ceil(Math.max(...validEvaluations.map((evaluation) => evaluation.amountInTotalUnit)) / quantum);
+  const optionsWithWeights = validEvaluations
+    .map((evaluation) => ({
+      ...evaluation,
+      weight: Math.max(1, Math.round(evaluation.amountInTotalUnit / quantum)),
+    }))
+    .sort((a, b) => b.amountInTotalUnit - a.amountInTotalUnit || a.option.price - b.option.price);
+  const states = Array<MultiOptionPlanState | null>(maxWeight + 1).fill(null);
+
+  states[0] = {
+    amount: 0,
+    cost: 0,
+    counts: Array(optionsWithWeights.length).fill(0) as number[],
+    packageCount: 0,
+  };
+
+  for (let weight = 0; weight <= maxWeight; weight += 1) {
+    const state = states[weight];
+
+    if (!state) {
+      continue;
+    }
+
+    optionsWithWeights.forEach((evaluation, index) => {
+      const nextWeight = weight + evaluation.weight;
+
+      if (nextWeight > maxWeight) {
+        return;
+      }
+
+      const counts = [...state.counts];
+      counts[index] += 1;
+
+      const nextState: MultiOptionPlanState = {
+        amount: state.amount + evaluation.amountInTotalUnit,
+        cost: state.cost + evaluation.option.price,
+        counts,
+        packageCount: state.packageCount + 1,
+      };
+
+      if (!states[nextWeight] || comparePlanStateForWeight(nextState, states[nextWeight]!) < 0) {
+        states[nextWeight] = nextState;
+      }
+    });
+  }
+
+  const selectedState = states
+    .filter((state): state is MultiOptionPlanState => state !== null && state.amount + purchaseEpsilon >= total.amount)
+    .sort((a, b) => compareCompletedPlanStates(a, b, total.amount))[0];
+
+  if (!selectedState) {
+    return calculateSimplePurchasePlanForTotal(ingredient, total, purchaseOptions);
+  }
+
+  const selectedWarnings = new Set<string>();
+  const lines = selectedState.counts.flatMap((count, index) => {
+    if (count <= 0) {
+      return [];
+    }
+
+    const evaluation = optionsWithWeights[index];
+    evaluation.warnings.forEach((warning) => selectedWarnings.add(warning));
+
+    return [
+      {
+        purchaseOptionId: evaluation.option.id,
+        packageCount: count,
+        packageAmount: evaluation.option.amount,
+        packageUnit: evaluation.option.unit,
+        purchasedAmount: count * evaluation.option.amount,
+        purchasedUnit: evaluation.option.unit,
+      },
+    ];
+  });
+
+  return {
+    purchasePlan: {
+      lines,
+      totalPurchasedAmount: selectedState.amount,
+      totalPurchasedUnit: total.unit,
+    },
+    warnings: Array.from(selectedWarnings),
+  };
+}
+
+function evaluateMultiOption(
+  ingredient: Ingredient,
+  total: BatchIngredientTotal,
+  option: PurchaseOption,
+): MultiOptionEvaluationResult {
+  const warnings: string[] = [];
+
+  if (!Number.isFinite(option.amount) || option.amount <= 0) {
+    warnings.push("Purchase option amount must be greater than zero.");
+    return { evaluation: null, warnings };
+  }
+
+  if (!Number.isFinite(option.price) || option.price <= 0) {
+    warnings.push("Purchase option price must be greater than zero.");
+    return { evaluation: null, warnings };
+  }
+
+  const converted = convertIngredientAmount({
+    ingredient,
+    amount: option.amount,
+    fromUnit: option.unit,
+    toUnit: total.unit,
+  });
+
+  if (!converted.ok) {
+    warnings.push(converted.reason, ...converted.warnings);
+    return { evaluation: null, warnings };
+  }
+
+  if (converted.amount <= 0) {
+    warnings.push("Converted purchase amount must be greater than zero.");
+    return { evaluation: null, warnings };
+  }
+
+  return {
+    evaluation: {
+      option,
+      amountInTotalUnit: converted.amount,
+      weight: 0,
+      warnings: converted.warnings,
+    },
+    warnings: converted.warnings,
+  };
+}
+
+function getMultiOptionQuantum(targetAmount: number, optionAmounts: number[]) {
+  let quantum = 0.001;
+  const maxAmount = targetAmount + Math.max(...optionAmounts);
+
+  while (Math.ceil(maxAmount / quantum) > multiOptionMaxStateCount) {
+    quantum *= 10;
+  }
+
+  return quantum;
+}
+
+function comparePlanStateForWeight(a: MultiOptionPlanState, b: MultiOptionPlanState) {
+  const costDifference = a.cost - b.cost;
+
+  if (Math.abs(costDifference) > purchaseEpsilon) {
+    return costDifference;
+  }
+
+  const amountDifference = a.amount - b.amount;
+
+  if (Math.abs(amountDifference) > purchaseEpsilon) {
+    return amountDifference;
+  }
+
+  return a.packageCount - b.packageCount;
+}
+
+function compareCompletedPlanStates(a: MultiOptionPlanState, b: MultiOptionPlanState, targetAmount: number) {
+  const overbuyDifference = Math.max(0, a.amount - targetAmount) - Math.max(0, b.amount - targetAmount);
+
+  if (Math.abs(overbuyDifference) > purchaseEpsilon) {
+    return overbuyDifference;
+  }
+
+  const costDifference = a.cost - b.cost;
+
+  if (Math.abs(costDifference) > purchaseEpsilon) {
+    return costDifference;
+  }
+
+  return a.packageCount - b.packageCount;
+}
+
+function normalizePurchaseCurrency(currency: string) {
+  return currency.trim() || "$";
 }
 
 function calculateInventoryAmount(ingredient: Ingredient, inventoryItems: InventoryItem[]) {
@@ -581,27 +847,46 @@ function calculatePurchasePlanCost(
   purchasePlan: BatchIngredientPurchasePlan,
   purchaseOptions: PurchaseOption[],
 ) {
-  const option = purchaseOptions.find((candidate) => candidate.id === purchasePlan.purchaseOptionId);
+  let cost = 0;
+  let currency: string | null = null;
+  const warnings = new Set<string>();
 
-  if (!option) {
-    return {
-      cost: null,
-      currency: null,
-      warnings: ["Missing purchase option"],
-    };
+  for (const line of purchasePlan.lines) {
+    const option = purchaseOptions.find((candidate) => candidate.id === line.purchaseOptionId);
+
+    if (!option) {
+      warnings.add("Missing purchase option");
+      continue;
+    }
+
+    const optionCurrency = normalizePurchaseCurrency(option.currency);
+
+    if (currency && optionCurrency !== currency) {
+      warnings.add("Batch uses multiple currencies, so total cost cannot be calculated.");
+      continue;
+    }
+
+    currency = optionCurrency;
+
+    if (!Number.isFinite(option.price) || option.price <= 0) {
+      warnings.add("Purchase option price must be greater than zero.");
+      continue;
+    }
+
+    cost += line.packageCount * option.price;
   }
 
-  if (!Number.isFinite(option.price) || option.price <= 0) {
+  if (warnings.size > 0) {
     return {
       cost: null,
-      currency: option.currency,
-      warnings: ["Purchase option price must be greater than zero."],
+      currency,
+      warnings: Array.from(warnings),
     };
   }
 
   return {
-    cost: purchasePlan.packageCount * option.price,
-    currency: option.currency,
+    cost,
+    currency,
     warnings: [],
   };
 }
@@ -713,7 +998,7 @@ function getClosestPurchasePlan<
         return a.option.isPreferred ? -1 : 1;
       }
 
-      const packageDifference = a.purchasePlan.packageCount - b.purchasePlan.packageCount;
+      const packageDifference = getPurchasePlanPackageCount(a.purchasePlan) - getPurchasePlanPackageCount(b.purchasePlan);
 
       if (packageDifference !== 0) {
         return packageDifference;
@@ -722,4 +1007,8 @@ function getClosestPurchasePlan<
       return new Date(b.option.lastUpdated).getTime() - new Date(a.option.lastUpdated).getTime();
     },
   )[0];
+}
+
+function getPurchasePlanPackageCount(purchasePlan: BatchIngredientPurchasePlan) {
+  return purchasePlan.lines.reduce((sum, line) => sum + line.packageCount, 0);
 }

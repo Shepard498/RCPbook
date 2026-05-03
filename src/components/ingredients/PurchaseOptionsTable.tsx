@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useI18n } from "../../app/i18n";
+import { useAppPreferences } from "../../app/preferences";
 import type {
   Ingredient,
   PurchaseOption,
@@ -19,6 +20,7 @@ interface PurchaseOptionsTableProps {
 
 export function PurchaseOptionsTable({ ingredient, options, onChange }: PurchaseOptionsTableProps) {
   const { t } = useI18n();
+  const { confirmDeletes } = useAppPreferences();
   const [expandedOptionId, setExpandedOptionId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -76,6 +78,10 @@ export function PurchaseOptionsTable({ ingredient, options, onChange }: Purchase
   }
 
   function deleteOption(id: string) {
+    if (confirmDeletes && !window.confirm(t("Delete purchase option? This cannot be undone."))) {
+      return;
+    }
+
     if (expandedOptionId === id) {
       setExpandedOptionId(null);
     }

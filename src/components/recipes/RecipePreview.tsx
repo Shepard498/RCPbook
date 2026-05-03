@@ -17,9 +17,10 @@ interface RecipePreviewProps {
   recipes: Recipe[];
   onBack?: () => void;
   onEdit: (recipe: Recipe) => void;
+  onDelete: (recipe: Recipe) => void;
 }
 
-export function RecipePreview({ recipe, ingredients, purchaseOptions, recipes, onBack, onEdit }: RecipePreviewProps) {
+export function RecipePreview({ recipe, ingredients, purchaseOptions, recipes, onBack, onEdit, onDelete }: RecipePreviewProps) {
   const { t } = useI18n();
   const [targetYield, setTargetYield] = useState<YieldDefinition>(() => cloneYield(recipe.yield));
   const [targetYieldText, setTargetYieldText] = useState(() => formatTargetYieldInput(recipe.yield));
@@ -66,7 +67,6 @@ export function RecipePreview({ recipe, ingredients, purchaseOptions, recipes, o
   return (
     <aside className="panel recipe-preview-panel">
       <div className="panel-header">
-        {onBack ? <MobileBackButton onClick={onBack} /> : null}
         <div>
           <h2>{recipe.name}</h2>
         </div>
@@ -98,11 +98,12 @@ export function RecipePreview({ recipe, ingredients, purchaseOptions, recipes, o
             <button type="button" onClick={() => onEdit(recipe)}>
               {t("Edit")}
             </button>
-            <button type="button" onClick={() => window.print()}>
-              {t("Print")}
+            <button type="button" className="danger" onClick={() => onDelete(recipe)}>
+              {t("Delete")}
             </button>
           </div>
         </div>
+        {onBack ? <MobileBackButton onClick={onBack} /> : null}
       </div>
       {previewWarnings.length > 0 ? (
         <div className="recipe-preview-warning">
