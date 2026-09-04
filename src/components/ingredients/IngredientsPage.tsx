@@ -14,6 +14,7 @@ import { SearchInput } from "../common/SearchInput";
 import { IngredientEditor } from "./IngredientEditor";
 import { IngredientList } from "./IngredientList";
 import { IngredientPreview } from "./IngredientPreview";
+import { PurchaseOptionEditor } from "./PurchaseOptionEditor";
 
 const miscellaneousCategoryId = "cat-packaging";
 const miscellaneousCategory: IngredientCategory = {
@@ -35,9 +36,12 @@ export function IngredientsPage({ mode = "ingredients" }: IngredientsPageProps) 
   const [purchaseOptions, setPurchaseOptions] = useState<PurchaseOption[]>([]);
   const [search, setSearch] = useState("");
   const [editingIngredient, setEditingIngredient] = useState<Ingredient | null>(null);
+  const [editingPurchaseOption, setEditingPurchaseOption] = useState<PurchaseOption | null>(null);
   const [selectedIngredientId, setSelectedIngredientId] = useState<string | null>(null);
   const [pendingDeleteIngredient, setPendingDeleteIngredient] = useState<Ingredient | null>(null);
+  const [pendingDeletePurchaseOption, setPendingDeletePurchaseOption] = useState<PurchaseOption | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [isCreatingPurchaseOption, setIsCreatingPurchaseOption] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -119,9 +123,6 @@ export function IngredientsPage({ mode = "ingredients" }: IngredientsPageProps) 
   }, [categoryById, pageIngredients, search, t]);
 
   const editorIngredient = isCreating ? null : editingIngredient;
-  const editorOptions = editorIngredient
-    ? purchaseOptionsByIngredient.get(editorIngredient.id) ?? []
-    : [];
   const selectedIngredient = useMemo(
     () => pageIngredients.find((ingredient) => ingredient.id === selectedIngredientId) ?? null,
     [pageIngredients, selectedIngredientId],
@@ -129,20 +130,63 @@ export function IngredientsPage({ mode = "ingredients" }: IngredientsPageProps) 
   const selectedOptions = selectedIngredient
     ? purchaseOptionsByIngredient.get(selectedIngredient.id) ?? []
     : [];
-  const hasActiveDetail = isCreating || Boolean(editingIngredient) || Boolean(selectedIngredient);
+  const activePurchaseOption = editingPurchaseOption
+    ? selectedOptions.find((option) => option.id === editingPurchaseOption.id) ?? editingPurchaseOption
+    : null;
+  const hasActiveDetail =
+    isCreating ||
+    isCreatingPurchaseOption ||
+    Boolean(editingIngredient) ||
+    Boolean(editingPurchaseOption) ||
+    Boolean(selectedIngredient);
 
   useInAppBackClose(hasActiveDetail, returnToList, isMiscellaneous ? "miscellaneous-detail" : "ingredients-detail");
 
   function returnToList() {
     setSelectedIngredientId(null);
     setEditingIngredient(null);
+    setEditingPurchaseOption(null);
     setIsCreating(false);
+    setIsCreatingPurchaseOption(false);
   }
 
   function startCreatingIngredient() {
     setIsCreating(true);
     setEditingIngredient(null);
+    setEditingPurchaseOption(null);
     setSelectedIngredientId(null);
+    setIsCreatingPurchaseOption(false);
+  }
+
+  function startEditingIngredient(ingredient: Ingredient) {
+    setSelectedIngredientId(ingredient.id);
+    setEditingIngredient(ingredient);
+    setEditingPurchaseOption(null);
+    setIsCreating(false);
+    setIsCreatingPurchaseOption(false);
+  }
+
+  function startCreatingPurchaseOption(ingredient: Ingredient) {
+    setSelectedIngredientId(ingredient.id);
+    setEditingIngredient(null);
+    setEditingPurchaseOption(null);
+    setIsCreating(false);
+    setIsCreatingPurchaseOption(true);
+  }
+
+  function startEditingPurchaseOption(ingredient: Ingredient, option: PurchaseOption) {
+    setSelectedIngredientId(ingredient.id);
+    setEditingIngredient(null);
+    setEditingPurchaseOption(option);
+    setIsCreating(false);
+    setIsCreatingPurchaseOption(false);
+  }
+
+  function returnToIngredientPreview() {
+    setEditingIngredient(null);
+    setEditingPurchaseOption(null);
+    setIsCreating(false);
+    setIsCreatingPurchaseOption(false);
   }
 
   async function deleteIngredient(ingredient: Ingredient) {
@@ -161,6 +205,8 @@ export function IngredientsPage({ mode = "ingredients" }: IngredientsPageProps) 
 
     if (selectedIngredientId === ingredient.id) {
       setSelectedIngredientId(null);
+      setEditingPurchaseOption(null);
+      setIsCreatingPurchaseOption(false);
     }
 
     setPendingDeleteIngredient(null);
@@ -173,6 +219,26 @@ export function IngredientsPage({ mode = "ingredients" }: IngredientsPageProps) 
     }
 
     void deleteIngredient(ingredient);
+  }
+
+  async function deletePurchaseOption(option: PurchaseOption) {
+    await db.purchaseOptions.delete(option.id);
+
+    if (editingPurchaseOption?.id === option.id) {
+      setEditingPurchaseOption(null);
+      setIsCreatingPurchaseOption(false);
+    }
+
+    setPendingDeletePurchaseOption(null);
+  }
+
+  function requestDeletePurchaseOption(option: PurchaseOption) {
+    if (confirmDeletes) {
+      setPendingDeletePurchaseOption(option);
+      return;
+    }
+
+    void deletePurchaseOption(option);
   }
 
   return (
@@ -209,13 +275,11 @@ export function IngredientsPage({ mode = "ingredients" }: IngredientsPageProps) 
             onSelect={(ingredient) => {
               setSelectedIngredientId(ingredient.id);
               setEditingIngredient(null);
+              setEditingPurchaseOption(null);
               setIsCreating(false);
+              setIsCreatingPurchaseOption(false);
             }}
-            onEdit={(ingredient) => {
-              setSelectedIngredientId(ingredient.id);
-              setEditingIngredient(ingredient);
-              setIsCreating(false);
-            }}
+            onEdit={(ingredient) => startEditingIngredient(ingredient)}
             onDelete={requestDeleteIngredient}
           />
         </section>
@@ -226,21 +290,34 @@ export function IngredientsPage({ mode = "ingredients" }: IngredientsPageProps) 
               key={editingIngredient?.id ?? "new"}
               ingredient={editorIngredient}
               categories={pageCategories}
-              purchaseOptions={editorOptions}
               defaultCategoryId={isMiscellaneous ? miscellaneousCategoryId : undefined}
               isCategoryLocked={isMiscellaneous}
               addTitle={isMiscellaneous ? t("Add item") : undefined}
               saveLabel={isMiscellaneous ? t("Save item") : undefined}
               onBack={returnToList}
-              onSaved={() => {
-                setSelectedIngredientId(editingIngredient?.id ?? null);
+              onSaved={(savedIngredient) => {
+                setSelectedIngredientId(savedIngredient.id);
                 setEditingIngredient(null);
+                setEditingPurchaseOption(null);
                 setIsCreating(false);
+                setIsCreatingPurchaseOption(false);
               }}
               onCancel={() => {
                 setEditingIngredient(null);
+                setEditingPurchaseOption(null);
                 setIsCreating(false);
+                setIsCreatingPurchaseOption(false);
               }}
+            />
+          ) : selectedIngredient && (isCreatingPurchaseOption || activePurchaseOption) ? (
+            <PurchaseOptionEditor
+              key={activePurchaseOption?.id ?? "new-purchase-option"}
+              ingredient={selectedIngredient}
+              option={isCreatingPurchaseOption ? null : activePurchaseOption}
+              isFirstOption={selectedOptions.length === 0}
+              onBack={returnToList}
+              onSaved={returnToIngredientPreview}
+              onCancel={returnToIngredientPreview}
             />
           ) : selectedIngredient ? (
             <IngredientPreview
@@ -249,11 +326,10 @@ export function IngredientsPage({ mode = "ingredients" }: IngredientsPageProps) 
               purchaseOptions={selectedOptions}
               eyebrowLabel={isMiscellaneous ? "Item" : undefined}
               onBack={returnToList}
-              onEdit={(ingredient) => {
-                setSelectedIngredientId(ingredient.id);
-                setEditingIngredient(ingredient);
-                setIsCreating(false);
-              }}
+              onEdit={(ingredient) => startEditingIngredient(ingredient)}
+              onAddPurchaseOption={() => startCreatingPurchaseOption(selectedIngredient)}
+              onEditPurchaseOption={(option) => startEditingPurchaseOption(selectedIngredient, option)}
+              onDeletePurchaseOption={requestDeletePurchaseOption}
               onDelete={requestDeleteIngredient}
             />
           ) : (
@@ -276,6 +352,16 @@ export function IngredientsPage({ mode = "ingredients" }: IngredientsPageProps) 
           onCancel={() => setPendingDeleteIngredient(null)}
           onConfirm={() => {
             void deleteIngredient(pendingDeleteIngredient);
+          }}
+        />
+      ) : null}
+      {pendingDeletePurchaseOption ? (
+        <ConfirmDialog
+          title={t("Delete purchase option")}
+          message={t("Delete purchase option? This cannot be undone.")}
+          onCancel={() => setPendingDeletePurchaseOption(null)}
+          onConfirm={() => {
+            void deletePurchaseOption(pendingDeletePurchaseOption);
           }}
         />
       ) : null}

@@ -86,6 +86,8 @@ const translations: Record<string, string> = {
   from: "desde",
   "Delete purchase option": "Eliminar opcion de compra",
   "Delete purchase option? This cannot be undone.": "¿Eliminar opcion de compra? Esta accion no se puede deshacer.",
+  "Edit purchase option": "Editar opcion de compra",
+  "Save option": "Guardar opcion",
   "Purchase option": "Opcion de compra",
   "Invalid option": "Opcion invalida",
   "No usable price": "Sin precio util",

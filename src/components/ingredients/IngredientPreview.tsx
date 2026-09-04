@@ -21,6 +21,9 @@ interface IngredientPreviewProps {
   eyebrowLabel?: string;
   onBack?: () => void;
   onEdit: (ingredient: Ingredient) => void;
+  onAddPurchaseOption: () => void;
+  onEditPurchaseOption: (option: PurchaseOption) => void;
+  onDeletePurchaseOption: (option: PurchaseOption) => void;
   onDelete: (ingredient: Ingredient) => void;
 }
 
@@ -31,6 +34,9 @@ export function IngredientPreview({
   eyebrowLabel = "Ingredient",
   onBack,
   onEdit,
+  onAddPurchaseOption,
+  onEditPurchaseOption,
+  onDeletePurchaseOption,
   onDelete,
 }: IngredientPreviewProps) {
   const { t } = useI18n();
@@ -105,7 +111,18 @@ export function IngredientPreview({
         ) : null}
 
         <section className="preview-section">
-          <h3>{t("Purchase options")}</h3>
+          <div className="preview-section-header">
+            <h3>{t("Purchase options")}</h3>
+            <button
+              type="button"
+              className="icon-button"
+              aria-label={t("Add option")}
+              title={t("Add option")}
+              onClick={onAddPurchaseOption}
+            >
+              +
+            </button>
+          </div>
           {purchaseOptions.length === 0 ? (
             <div className="empty-state">{t("No purchase options yet.")}</div>
           ) : (
@@ -114,25 +131,52 @@ export function IngredientPreview({
                 const priceResult = calculatePricePerBaseUnit(ingredient, option);
 
                 return (
-                  <div className="purchase-option-card" key={option.id}>
+                  <div
+                    className="purchase-option-card"
+                    key={option.id}
+                    onClick={() => onEditPurchaseOption(option)}
+                  >
                     <div className="purchase-option-summary">
-                      <div className="summary-main">
-                        <div className="summary-title">
-                          {getOptionTitle(option)}
-                          {option.isPreferred ? <span className="badge neutral">{t("Preferred")}</span> : null}
+                      <button
+                        type="button"
+                        className="purchase-option-toggle purchase-option-preview-button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onEditPurchaseOption(option);
+                        }}
+                      >
+                        <div className="summary-main">
+                          <div className="summary-title">
+                            {getOptionTitle(option)}
+                            {option.isPreferred ? <span className="badge neutral">{t("Preferred")}</span> : null}
+                          </div>
+                          <div className="summary-detail">
+                            {formatNumber(option.amount)} {option.unit} {t("for")}{" "}
+                            {formatCurrency(option.price, option.currency)} -{" "}
+                            {t(formatDate(option.lastUpdated))}
+                          </div>
                         </div>
-                        <div className="summary-detail">
-                          {formatNumber(option.amount)} {option.unit} {t("for")}{" "}
-                          {formatCurrency(option.price, option.currency)} -{" "}
-                          {t(formatDate(option.lastUpdated))}
+                        <div className={`summary-price ${priceResult.ok ? "" : "invalid"}`}>
+                          {priceResult.ok && priceResult.pricePerBaseUnit !== null && priceResult.currency
+                            ? `${formatCurrency(priceResult.pricePerBaseUnit, priceResult.currency)}/${
+                                priceResult.baseUnit
+                              }`
+                            : t("Invalid option")}
                         </div>
-                      </div>
-                      <div className={`summary-price ${priceResult.ok ? "" : "invalid"}`}>
-                        {priceResult.ok && priceResult.pricePerBaseUnit !== null && priceResult.currency
-                          ? `${formatCurrency(priceResult.pricePerBaseUnit, priceResult.currency)}/${
-                              priceResult.baseUnit
-                            }`
-                          : t("Invalid option")}
+                      </button>
+                      <div className="summary-actions">
+                        <button
+                          type="button"
+                          className="icon-button danger"
+                          aria-label={t("Delete purchase option")}
+                          title={t("Delete purchase option")}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onDeletePurchaseOption(option);
+                          }}
+                        >
+                          X
+                        </button>
                       </div>
                     </div>
                   </div>

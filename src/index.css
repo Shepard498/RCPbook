@@ -834,6 +834,13 @@ body::-webkit-scrollbar-thumb:hover,
   margin: 0;
 }
 
+.preview-section-header {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
 .ingredient-preview-body,
 .purchase-option-preview-list {
   display: grid;
@@ -849,6 +856,7 @@ body::-webkit-scrollbar-thumb:hover,
 .purchase-option-card {
   border: 1px solid var(--border);
   border-radius: 8px;
+  cursor: pointer;
   overflow: hidden;
 }
 
@@ -858,6 +866,23 @@ body::-webkit-scrollbar-thumb:hover,
   gap: 8px;
   padding: 8px;
   align-items: stretch;
+  cursor: pointer;
+}
+
+.purchase-option-summary:hover {
+  background: var(--panel-hover);
+}
+
+.purchase-option-summary:hover .purchase-option-toggle {
+  background: var(--panel-hover);
+}
+
+.purchase-option-preview-button {
+  min-height: 0;
+}
+
+.purchase-option-preview-button:hover {
+  background: var(--panel-hover);
 }
 
 .purchase-option-toggle {
@@ -871,6 +896,7 @@ body::-webkit-scrollbar-thumb:hover,
   min-width: 0;
   padding: 6px 8px;
   text-align: left;
+  width: 100%;
 }
 
 .purchase-option-toggle:hover {

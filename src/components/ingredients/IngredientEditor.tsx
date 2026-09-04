@@ -5,29 +5,24 @@ import type {
   DensityUnit,
   Ingredient,
   IngredientCategory,
-  PurchaseOption,
   UnitWeightUnit,
 } from "../../domain/ingredients/ingredientTypes";
-import { getIngredientPriceSummary } from "../../domain/ingredients/priceMath";
 import type { UnitId } from "../../domain/units/unitTypes";
 import { todayIso } from "../../utils/dates";
 import { createId } from "../../utils/ids";
-import { normalizeCurrency, parseNumberInput } from "../../utils/numbers";
+import { parseNumberInput } from "../../utils/numbers";
 import { MobileBackButton } from "../common/MobileBackButton";
 import { UnitSelect } from "../common/UnitSelect";
-import { WarningList } from "../common/WarningList";
-import { PurchaseOptionsTable } from "./PurchaseOptionsTable";
 
 interface IngredientEditorProps {
   ingredient: Ingredient | null;
   categories: IngredientCategory[];
-  purchaseOptions: PurchaseOption[];
   defaultCategoryId?: string;
   isCategoryLocked?: boolean;
   addTitle?: string;
   saveLabel?: string;
   onBack?: () => void;
-  onSaved: () => void;
+  onSaved: (ingredient: Ingredient) => void;
   onCancel: () => void;
 }
 
@@ -46,7 +41,6 @@ const unitWeightUnits: UnitWeightUnit[] = ["g/unit", "kg/unit"];
 export function IngredientEditor({
   ingredient,
   categories,
-  purchaseOptions,
   defaultCategoryId,
   isCategoryLocked = false,
   addTitle,
@@ -57,7 +51,6 @@ export function IngredientEditor({
 }: IngredientEditorProps) {
   const { t } = useI18n();
   const [draft, setDraft] = useState<IngredientDraft>(() => createDraft(ingredient, defaultCategoryId));
-  const [options, setOptions] = useState<PurchaseOption[]>(purchaseOptions);
   const [densityValue, setDensityValue] = useState("");
   const [densityUnit, setDensityUnit] = useState<DensityUnit>("g/mL");
   const [unitWeightValue, setUnitWeightValue] = useState("");
@@ -66,21 +59,12 @@ export function IngredientEditor({
 
   useEffect(() => {
     setDraft(createDraft(ingredient, defaultCategoryId));
-    setOptions(purchaseOptions.map(normalizePurchaseOptionForEditor));
     setDensityValue(ingredient?.density?.value.toString() ?? "");
     setDensityUnit(ingredient?.density?.unit ?? "g/mL");
     setUnitWeightValue(ingredient?.unitWeight?.value.toString() ?? "");
     setUnitWeightUnit(ingredient?.unitWeight?.unit ?? "g/unit");
-  }, [defaultCategoryId, ingredient, purchaseOptions]);
+  }, [defaultCategoryId, ingredient]);
 
-  const previewIngredient = buildIngredientFromDraft(
-    draft,
-    densityValue,
-    densityUnit,
-    unitWeightValue,
-    unitWeightUnit,
-  );
-  const warningSummary = getIngredientPriceSummary(previewIngredient, options);
   const title = ingredient ? t("Edit {name}", { name: ingredient.name }) : addTitle ?? t("Add ingredient");
 
   async function saveIngredient() {
@@ -107,30 +91,10 @@ export function IngredientEditor({
       ),
       updatedAt: now,
     };
-    const normalizedOptions = normalizePurchaseOptions(options, normalizedIngredient.id, now);
 
     try {
-      await db.transaction("rw", db.ingredients, db.purchaseOptions, async () => {
-        await db.ingredients.put(normalizedIngredient);
-
-        const existingOptionIds = ingredient
-          ? await db.purchaseOptions.where("ingredientId").equals(ingredient.id).primaryKeys()
-          : [];
-        const nextOptionIds = new Set(normalizedOptions.map((option) => option.id));
-        const removedOptionIds = existingOptionIds
-          .map(String)
-          .filter((optionId) => !nextOptionIds.has(optionId));
-
-        if (removedOptionIds.length > 0) {
-          await db.purchaseOptions.bulkDelete(removedOptionIds);
-        }
-
-        if (normalizedOptions.length > 0) {
-          await db.purchaseOptions.bulkPut(normalizedOptions);
-        }
-      });
-
-      onSaved();
+      await db.ingredients.put(normalizedIngredient);
+      onSaved(normalizedIngredient);
     } finally {
       setIsSaving(false);
     }
@@ -143,7 +107,6 @@ export function IngredientEditor({
         <div>
           <h2>{title}</h2>
         </div>
-        <WarningList warnings={warningSummary.warnings} />
       </div>
 
       <div className="panel-body">
@@ -235,7 +198,6 @@ export function IngredientEditor({
           </label>
         </div>
 
-        <PurchaseOptionsTable ingredient={previewIngredient} options={options} onChange={setOptions} />
       </div>
 
       <div className="panel-footer">
@@ -298,28 +260,5 @@ function buildIngredientFromDraft(
     notes: draft.notes.trim() || undefined,
     createdAt: draft.createdAt,
     updatedAt: now,
-  };
-}
-
-function normalizePurchaseOptions(options: PurchaseOption[], ingredientId: string, now: string) {
-  const preferredIndex = options.findIndex((option) => option.isPreferred);
-
-  return options.map((option, index) => ({
-    ...option,
-    ingredientId,
-    currency: normalizeCurrency(option.currency),
-    supplier: option.supplier?.trim() || undefined,
-    brand: option.brand?.trim() || undefined,
-    referenceUrl: option.referenceUrl?.trim() || undefined,
-    notes: option.notes?.trim() || undefined,
-    isPreferred: preferredIndex >= 0 ? index === preferredIndex : false,
-    updatedAt: now,
-  }));
-}
-
-function normalizePurchaseOptionForEditor(option: PurchaseOption): PurchaseOption {
-  return {
-    ...option,
-    currency: normalizeCurrency(option.currency),
   };
 }
