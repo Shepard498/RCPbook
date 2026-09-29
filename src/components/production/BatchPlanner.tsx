@@ -1,7 +1,9 @@
 import { liveQuery } from "dexie";
+import { CircleCheck, Plus, TriangleAlert, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { flushSync } from "react-dom";
 import { useI18n } from "../../app/i18n";
+import { printDocument } from "../../app/platform";
 import { useAppPreferences } from "../../app/preferences";
 import { useRouteActions } from "../../app/routeActions";
 import { db } from "../../db/db";
@@ -125,7 +127,7 @@ export function BatchPlanner() {
 
   const printBatchDocument = useCallback((mode: BatchPrintMode) => {
     flushSync(() => setPrintMode(mode));
-    window.print();
+    void printDocument();
   }, []);
 
   useEffect(() => {
@@ -307,9 +309,9 @@ export function BatchPlanner() {
 
                       {row.rowType === "recipe" ? (
                         <div className="batch-row-content">
-                          <label>
-                            {t("Recipe")}
-                            <select value={row.recipeId} onChange={(event) => updateRowRecipe(row.id, event.target.value)}>
+                          <label className="batch-row-choice" htmlFor={`batch-choice-${row.id}`}>
+                            <span>{t("Recipe")}</span>
+                            <select id={`batch-choice-${row.id}`} value={row.recipeId} onChange={(event) => updateRowRecipe(row.id, event.target.value)}>
                               {filteredRecipes.map((recipeOption) => (
                                 <option key={recipeOption.id} value={recipeOption.id}>
                                   {recipeOption.name}
@@ -322,11 +324,6 @@ export function BatchPlanner() {
                           </label>
 
                           <div className="batch-row-specs">
-                            <div className="batch-original-yield">
-                              <span className="muted">{t("Original")}</span>
-                              <strong>{recipe ? formatYield(recipe.yield, t) : t("Missing recipe")}</strong>
-                            </div>
-
                             <div className="batch-target-yield">
                               <TargetYieldEditor
                                 value={row.targetYield}
@@ -337,9 +334,9 @@ export function BatchPlanner() {
                         </div>
                       ) : (
                         <div className="batch-row-content">
-                          <label>
-                            {t("Item")}
-                            <select value={row.ingredientId} onChange={(event) => updateRowItem(row.id, event.target.value)}>
+                          <label className="batch-row-choice" htmlFor={`batch-choice-${row.id}`}>
+                            <span>{t("Item")}</span>
+                            <select id={`batch-choice-${row.id}`} value={row.ingredientId} onChange={(event) => updateRowItem(row.id, event.target.value)}>
                               {miscellaneousItems.map((itemOption) => (
                                 <option key={itemOption.id} value={itemOption.id}>
                                   {itemOption.name}
@@ -374,18 +371,40 @@ export function BatchPlanner() {
 
                       <button
                         type="button"
-                        className="icon-button danger"
+                        className="icon-button danger batch-row-delete"
                         aria-label={t("Delete batch row")}
                         title={t("Delete batch row")}
                         onClick={() => requestDeleteRow(row)}
                       >
-                        X
+                        <X size={18} aria-hidden="true" />
                       </button>
                     </div>
                   );
                 })}
               </div>
             )}
+            <div className="batch-add-placeholders">
+              <button
+                type="button"
+                className="add-placeholder-card"
+                aria-label={t("Add recipe")}
+                onClick={addRow}
+                disabled={recipes.length === 0}
+              >
+                <span className="placeholder-plus" aria-hidden="true"><Plus size={20} /></span>
+                <span>{t("Add recipe")}</span>
+              </button>
+              <button
+                type="button"
+                className="add-placeholder-card"
+                aria-label={t("Add miscellaneous item")}
+                onClick={addItemRow}
+                disabled={miscellaneousItems.length === 0}
+              >
+                <span className="placeholder-plus" aria-hidden="true"><Plus size={20} /></span>
+                <span>{t("Add miscellaneous item")}</span>
+              </button>
+            </div>
           </div>
         </section>
 
@@ -469,10 +488,6 @@ function BatchPlanSummary({
       </div>
 
       <div className="panel-body batch-plan-body">
-        <div className="scaled-warning-row">
-          <WarningList warnings={batchPlan.warnings} />
-        </div>
-
         <section className="batch-print-section">
           <h3>{t("Recipes")}</h3>
           {batchPlan.recipeResults.length === 0 ? (
@@ -486,14 +501,24 @@ function BatchPlanSummary({
                     <th>{t("Target")}</th>
                     <th className="batch-recipe-scale-column">{t("Scale")}</th>
                     <th>{t("Cost")}</th>
-                    <th className="batch-recipe-warnings-column">{t("Warnings")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {batchPlan.recipeResults.map((result) => (
                     <tr key={result.rowId}>
                       <td className="batch-recipe-name-column">
-                        <strong>{result.recipeName}</strong>
+                        <div className="batch-recipe-heading">
+                          <strong>{result.recipeName}</strong>
+                          <span
+                            className={`badge ${result.warnings.length > 0 ? "warning" : "neutral"} batch-recipe-warning-count`}
+                            role="img"
+                            aria-label={`${t("Warnings")}: ${result.warnings.length}`}
+                            title={`${t("Warnings")}: ${result.warnings.length}`}
+                          >
+                            {result.warnings.length > 0 ? <TriangleAlert size={16} aria-hidden="true" /> : <CircleCheck size={16} aria-hidden="true" />}
+                            {result.warnings.length}
+                          </span>
+                        </div>
                       </td>
                       <td>{formatYield(result.targetYield, t)}</td>
                       <td className="batch-recipe-scale-column">
@@ -503,9 +528,6 @@ function BatchPlanSummary({
                         {result.costResult?.totalCost !== null && result.costResult?.currency
                           ? formatCurrency(result.costResult.totalCost, result.costResult.currency)
                           : t("Incomplete")}
-                      </td>
-                      <td className="batch-recipe-warnings-column">
-                        <WarningList warnings={result.warnings} />
                       </td>
                     </tr>
                   ))}

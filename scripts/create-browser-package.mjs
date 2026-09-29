@@ -133,7 +133,7 @@ Windows:
   Double-click launch-windows.cmd.
 
 macOS/Linux:
-  Run ./launch-mac-linux.sh from a terminal.
+  Run sh ./launch-mac-linux.sh from a terminal.
 
 The launcher opens the app in your browser at http://127.0.0.1:4173/ or the next available port.
 Keep the launcher window open while using the app.

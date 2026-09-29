@@ -14,3 +14,7 @@ pnpm-lock.yaml
 *.log
 coverage/
 release/
+.android-tools/
+.android-signing/
+*.jks
+*.keystore

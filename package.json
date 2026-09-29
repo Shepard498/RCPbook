@@ -1,20 +1,30 @@
 {
   "name": "recipe-ingredient-manager",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
     "package:browser": "npm run build && node scripts/create-browser-package.mjs",
+    "package:netlify": "npm run build && node scripts/create-netlify-package.mjs",
+    "android:setup": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-android-sdk.ps1",
+    "android:sync": "npm run build && cap sync android",
+    "package:android": "npm run android:sync && node scripts/create-android-package.mjs",
+    "package:android:release": "npm run android:sync && node scripts/create-android-package.mjs --release",
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {
+    "@capacitor/android": "8.5.2",
+    "@capacitor/app": "8.1.1",
+    "@capacitor/core": "8.5.2",
     "dexie": "^4.0.11",
+    "lucide-react": "1.48.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "8.5.2",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^5.0.0",

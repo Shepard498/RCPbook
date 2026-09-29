@@ -11,6 +11,7 @@ import { AppPreferencesProvider, useAppPreferences } from "./preferences";
 import { RouteActionsProvider, useRouteActions } from "./routeActions";
 import { routes } from "./routes";
 import { useInAppBackClose } from "./useInAppBackClose";
+import { updateAndroidTheme } from "./platform";
 
 type ThemeMode = "light" | "dark";
 
@@ -37,6 +38,8 @@ function AppShell() {
     return savedTheme === "dark" ? "dark" : "light";
   });
   const importInputRef = useRef<HTMLInputElement | null>(null);
+  const navMenuRef = useRef<HTMLDivElement | null>(null);
+  const settingsMenuRef = useRef<HTMLDivElement | null>(null);
   const { language, setLanguage, t } = useI18n();
   const { confirmDeletes, setConfirmDeletes } = useAppPreferences();
   const { action: routeAction } = useRouteActions();
@@ -44,6 +47,31 @@ function AppShell() {
 
   useInAppBackClose(isNavOpen, () => setIsNavOpen(false), "navigation-menu");
   useInAppBackClose(isSettingsOpen, () => setIsSettingsOpen(false), "settings-menu");
+
+  useEffect(() => {
+    if (!isNavOpen && !isSettingsOpen) return;
+
+    function handlePointerDown(event: PointerEvent) {
+      if (!(event.target instanceof Node)) return;
+      if (!navMenuRef.current?.contains(event.target)) setIsNavOpen(false);
+      if (!settingsMenuRef.current?.contains(event.target)) setIsSettingsOpen(false);
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      const activeMenu = isNavOpen ? navMenuRef.current : settingsMenuRef.current;
+      setIsNavOpen(false);
+      setIsSettingsOpen(false);
+      activeMenu?.querySelector("button")?.focus();
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown, true);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown, true);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isNavOpen, isSettingsOpen]);
 
   useEffect(() => {
     if (!window.location.hash) {
@@ -58,14 +86,15 @@ function AppShell() {
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem("recipe-app-theme", theme);
+    updateAndroidTheme(theme);
   }, [theme]);
 
   async function handleExportBackup() {
     setBackupStatus(null);
 
     try {
-      await downloadBackupFile();
-      setBackupStatus(t("Backup saved."));
+      const saved = await downloadBackupFile();
+      setBackupStatus(t(saved ? "Backup saved." : "Backup cancelled."));
     } catch (err) {
       setBackupStatus(err instanceof Error ? err.message : t("Backup failed."));
     }
@@ -113,7 +142,7 @@ function AppShell() {
         <div className="app-title-area">
           <h1>{t("Recipe Manager")}</h1>
           <div className="app-route-controls">
-            <div className="app-route-menu">
+            <div className="app-route-menu" ref={navMenuRef}>
               <button
                 type="button"
                 className="menu-button"
@@ -147,7 +176,7 @@ function AppShell() {
           </div>
         </div>
         <div className="header-actions">
-          <div className="settings-control">
+          <div className="settings-control" ref={settingsMenuRef}>
             <button
               type="button"
               className="icon-button settings-button"

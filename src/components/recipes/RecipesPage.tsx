@@ -1,6 +1,7 @@
 import { liveQuery } from "dexie";
 import { useEffect, useMemo, useState } from "react";
 import { useI18n } from "../../app/i18n";
+import { printDocument } from "../../app/platform";
 import { useAppPreferences } from "../../app/preferences";
 import { useRouteActions } from "../../app/routeActions";
 import { useInAppBackClose } from "../../app/useInAppBackClose";
@@ -80,7 +81,7 @@ export function RecipesPage() {
         type="button"
         className="print-button"
         disabled={!canPrintRecipe}
-        onClick={() => window.print()}
+        onClick={() => void printDocument()}
       >
         {t("Print")}
       </button>,

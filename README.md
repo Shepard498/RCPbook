@@ -136,6 +136,95 @@ npm run package:browser
 The package is written to `release/recipe-ingredient-manager-browser`. It includes
 the built app, `launch-windows.cmd`, `launch-mac-linux.sh`, and a tiny local Node
 server that opens the app in a browser.
+On macOS/Linux, run `sh ./launch-mac-linux.sh` from the extracted folder so the
+launcher also works when a ZIP extractor does not preserve executable permissions.
+
+## Netlify package
+
+```bash
+npm run package:netlify
+```
+
+The deploy-ready files are written to `release/recipe-ingredient-manager-netlify`.
+The release ZIP contains `index.html` and `assets/` at its root, without a local
+server or Node dependencies. Extract and upload this folder to Netlify Drop, or
+upload the ZIP where supported. See [Netlify's manual deployment guide](https://docs.netlify.com/deploy/create-deploys/).
+
+For Git-connected deployments, `netlify.toml` sets the build command to
+`npm run build`, publishes `dist`, and selects Node 22. Navigation uses hash routes,
+so no SPA path rewrite is needed. Updating the same site preserves its browser
+storage; moving to a different domain requires exporting and importing a backup.
+
+## Android test APK
+
+The Android app bundles the same React UI with Capacitor and works offline.
+It uses application ID `io.github.shepard498.rcpbook`, supports Android 7+
+(with an up-to-date Android System WebView), and keeps its own local database.
+Transfer browser data with Settings > Save data, then Load data in the Android app.
+
+Requirements: Node 22+, JDK 21, Android SDK platform 36, and build tools 35/36.
+On Windows, install the SDK locally into the ignored `.android-tools` directory:
+
+```bash
+npm install
+npm run android:setup
+npm run package:android
+```
+
+The setup command downloads Google's SDK tools, verifies their SHA-256 checksum,
+and accepts the SDK licenses while installing the required packages. An existing
+SDK can also be used by setting `ANDROID_HOME`.
+
+The build runs TypeScript/Vite, synchronizes Capacitor, builds the Android debug
+variant, and runs Android lint. The resulting test APK is written to
+`release/recipe-ingredient-manager-v0.4.0-android-debug.apk`.
+SDK and Gradle caches stay in `.android-tools`; nothing needs to be installed on
+the phone except the APK. Android Studio is optional for these command-line builds.
+
+Backup export uses Android's document picker. Printing opens Android's print
+service, which also supports saving to PDF. Import and recipe image selection use
+the system file picker. Test these flows on a physical device, along with Back,
+keyboard resizing, airplane mode, and persistence after restarting the app.
+
+This command produces a debug build for testing. Keep the `android/` source
+project in version control; regenerate bundled web assets with
+`npm run android:sync` after web changes.
+
+## Android release APK
+
+Release builds use a separate permanent signing key. Configure
+`.android-signing/release.properties` locally:
+
+```properties
+storeFile=.android-signing/rcpbook-release.jks
+storePassword=YOUR_KEYSTORE_PASSWORD
+keyAlias=rcpbook
+keyPassword=YOUR_KEY_PASSWORD
+```
+
+`storeFile` is relative to the repository root. The entire `.android-signing/`
+directory is ignored by Git. Never publish its contents; back up both the
+keystore and credentials securely. Future updates must use the same signing key.
+
+```bash
+npm run package:android:release
+```
+
+This runs the production web build, Capacitor sync, `assembleRelease`, and
+`lintRelease`. The signed, non-debuggable APK is written to
+`release/recipe-ingredient-manager-v0.4.0-android.apk`. Each Android release must
+increase `versionCode` in `android/app/build.gradle`; `versionName` comes from
+`package.json`.
+
+Before replacing the old debug app, use Settings > Save data. Android cannot
+install an APK signed with a different key over that app: uninstall the debug
+version, install the release APK, and use Load data to restore the backup.
+Uninstalling without a backup can erase the app's local data. The APK is intended
+for direct installation, not a Google Play submission. The backup includes the
+ingredient/recipe library, images, and inventory, but not the saved batch plan or
+app preferences; record those separately before reinstalling. See
+[Android's signing documentation](https://developer.android.com/studio/publish/app-signing)
+for signing-key storage and update requirements.
 
 ## Tech stack
 

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useI18n } from "../../app/i18n";
+import { printDocument } from "../../app/platform";
 import { db } from "../../db/db";
 import type { Ingredient } from "../../domain/ingredients/ingredientTypes";
 import type { CostResult } from "../../domain/recipes/recipeCosting";
@@ -81,7 +82,7 @@ export function ScaledRecipeView({ scaledRecipe, ingredients, recipes, costResul
           <p className="eyebrow">{t("Scaled recipe")}</p>
           <h2>{scaledRecipe.recipe.name}</h2>
         </div>
-        <button type="button" onClick={() => window.print()}>
+        <button type="button" onClick={() => void printDocument()}>
           {t("Print")}
         </button>
       </div>

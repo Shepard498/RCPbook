@@ -107,7 +107,7 @@ export function RecipePreview({ recipe, ingredients, purchaseOptions, recipes, o
       </div>
       {previewWarnings.length > 0 ? (
         <div className="recipe-preview-warning">
-          <WarningList warnings={previewWarnings} />
+          <WarningList key={recipe.id} warnings={previewWarnings} collapsible />
         </div>
       ) : null}
       <RecipePrintView

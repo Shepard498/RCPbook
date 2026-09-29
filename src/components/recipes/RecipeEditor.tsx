@@ -17,6 +17,7 @@ import { ProcedureStepEditor } from "./ProcedureStepEditor";
 import { RecipeIngredientTable } from "./RecipeIngredientTable";
 import { RecipePrintView } from "./RecipePrintView";
 import { YieldEditor } from "./YieldEditor";
+import { RecipeAddButton } from "./RecipeAddButton";
 
 interface RecipeEditorProps {
   recipe: Recipe | null;
@@ -140,7 +141,7 @@ export function RecipeEditor({ recipe, ingredients, recipes, onBack, onSaved, on
         <div>
           <h2>{title}</h2>
         </div>
-        <WarningList warnings={validation.warnings} />
+        <WarningList warnings={validation.warnings} collapsible />
       </div>
 
       <div className="panel-body">
@@ -207,15 +208,9 @@ export function RecipeEditor({ recipe, ingredients, recipes, onBack, onSaved, on
       <div className="panel-footer">
         <div className="editor-actions recipe-editor-actions">
           <div className="table-actions recipe-add-actions">
-            <button type="button" disabled={!canAddIngredientLine} onClick={addIngredientLine}>
-              {t("Add ingredient")}
-            </button>
-            <button type="button" disabled={!canAddSubRecipeLine} onClick={addSubRecipeLine}>
-              {t("Add sub-recipe")}
-            </button>
-            <button type="button" onClick={addProcedureStep}>
-              {t("Add step")}
-            </button>
+            <RecipeAddButton kind="ingredient" disabled={!canAddIngredientLine} onClick={addIngredientLine} />
+            <RecipeAddButton kind="subrecipe" disabled={!canAddSubRecipeLine} onClick={addSubRecipeLine} />
+            <RecipeAddButton kind="step" onClick={addProcedureStep} />
           </div>
           <div className="table-actions recipe-save-actions">
             <button type="button" onClick={onCancel}>

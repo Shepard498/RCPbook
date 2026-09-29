@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { isAndroidApp } from "./platform";
 
 const mobileBackQuery = "(max-width: 720px)";
 
@@ -18,7 +19,7 @@ export function useInAppBackClose(active: boolean, onClose: () => void, key: str
       return undefined;
     }
 
-    if (!window.matchMedia(mobileBackQuery).matches || isArmedRef.current) {
+    if ((!isAndroidApp && !window.matchMedia(mobileBackQuery).matches) || isArmedRef.current) {
       return undefined;
     }
 

@@ -3,6 +3,7 @@ import type { Ingredient, IngredientCategory, PurchaseOption } from "../domain/i
 import type { InventoryItem } from "../domain/inventory/inventoryTypes";
 import type { Recipe } from "../domain/recipes/recipeTypes";
 import { db } from "./db";
+import { isAndroidApp, recipePlatform } from "../app/platform";
 
 const backupFormat = "recipe-manager-backup";
 const backupVersion = 1;
@@ -84,17 +85,23 @@ export async function importBackup(fileText: string) {
 export async function downloadBackupFile() {
   const backup = await exportBackup();
   const json = JSON.stringify(backup, null, 2);
+  const date = new Date().toISOString().slice(0, 10);
+  const filename = `recipe-manager-backup-${date}.json`;
+  if (isAndroidApp) {
+    const result = await recipePlatform.saveBackup({ filename, data: json });
+    return result.saved;
+  }
   const blob = new Blob([json], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
-  const date = new Date().toISOString().slice(0, 10);
 
   anchor.href = url;
-  anchor.download = `recipe-manager-backup-${date}.json`;
+  anchor.download = filename;
   document.body.append(anchor);
   anchor.click();
   anchor.remove();
   URL.revokeObjectURL(url);
+  return true;
 }
 
 async function toBackupImageBlob(record: ImageBlobRecord): Promise<BackupImageBlobRecord> {
