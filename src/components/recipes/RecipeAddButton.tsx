@@ -37,11 +37,17 @@ export function RecipeAddButton({ kind, disabled, onClick }: RecipeAddButtonProp
       aria-label={label}
       title={label}
     >
-      <span className="recipe-add-icons" aria-hidden="true">
-        <Plus className="recipe-add-plus" size={14} />
-        {kind === "subrecipe" ? <FileText size={24} /> : <Icon iconNode={kind === "ingredient" ? measuringCup : stairs} size={24} />}
-      </span>
+      <RecipeAddIcons kind={kind} />
       <span className="recipe-add-label">{label}</span>
     </button>
+  );
+}
+
+export function RecipeAddIcons({ kind }: Pick<RecipeAddButtonProps, "kind">) {
+  return (
+    <span className="recipe-add-icons" aria-hidden="true">
+      <Plus className="recipe-add-plus" size={14} />
+      {kind === "subrecipe" ? <FileText size={24} /> : <Icon iconNode={kind === "ingredient" ? measuringCup : stairs} size={24} />}
+    </span>
   );
 }

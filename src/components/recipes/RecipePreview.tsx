@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useI18n } from "../../app/i18n";
+import { Pencil, X } from "lucide-react";
 import type { Ingredient, PurchaseOption } from "../../domain/ingredients/ingredientTypes";
 import { calculateRecipeCost } from "../../domain/recipes/recipeCosting";
 import type { Recipe } from "../../domain/recipes/recipeTypes";
@@ -12,6 +13,7 @@ import { RecipePrintView, type RecipePrintStats } from "./RecipePrintView";
 
 interface RecipePreviewProps {
   recipe: Recipe;
+  includeSubRecipes: boolean;
   ingredients: Ingredient[];
   purchaseOptions: PurchaseOption[];
   recipes: Recipe[];
@@ -20,17 +22,15 @@ interface RecipePreviewProps {
   onDelete: (recipe: Recipe) => void;
 }
 
-export function RecipePreview({ recipe, ingredients, purchaseOptions, recipes, onBack, onEdit, onDelete }: RecipePreviewProps) {
+export function RecipePreview({ recipe, includeSubRecipes, ingredients, purchaseOptions, recipes, onBack, onEdit, onDelete }: RecipePreviewProps) {
   const { t } = useI18n();
   const [targetYield, setTargetYield] = useState<YieldDefinition>(() => cloneYield(recipe.yield));
   const [targetYieldText, setTargetYieldText] = useState(() => formatTargetYieldInput(recipe.yield));
-  const [includeSubRecipes, setIncludeSubRecipes] = useState(false);
 
   useEffect(() => {
     const nextTargetYield = cloneYield(recipe.yield);
     setTargetYield(nextTargetYield);
     setTargetYieldText(formatTargetYieldInput(nextTargetYield));
-    setIncludeSubRecipes(false);
   }, [recipe.id, recipe.yield]);
 
   const scaledRecipeResult = useMemo(() => scaleRecipe(recipe, targetYield), [recipe, targetYield]);
@@ -57,7 +57,6 @@ export function RecipePreview({ recipe, ingredients, purchaseOptions, recipes, o
         : t("Incomplete"),
     costPerOutput: getCostPerOutput(displayRecipe.yield, costResult, t),
   };
-  const hasSubRecipeLines = displayRecipe.lines.some((line) => line.itemType === "recipe");
 
   function updateTargetYield(value: string) {
     setTargetYieldText(value);
@@ -66,7 +65,7 @@ export function RecipePreview({ recipe, ingredients, purchaseOptions, recipes, o
 
   return (
     <aside className="panel recipe-preview-panel">
-      <div className="panel-header">
+      <div className="panel-header recipe-preview-header">
         <div>
           <h2>{recipe.name}</h2>
         </div>
@@ -84,26 +83,16 @@ export function RecipePreview({ recipe, ingredients, purchaseOptions, recipes, o
               <span>{getTargetYieldSuffix(targetYield)}</span>
             </span>
           </label>
-          {hasSubRecipeLines ? (
-            <label className="checkbox-label recipe-print-option">
-              <input
-                type="checkbox"
-                checked={includeSubRecipes}
-                onChange={(event) => setIncludeSubRecipes(event.target.checked)}
-              />
-              {t("Include sub-recipes")}
-            </label>
-          ) : null}
-          <div className="table-actions">
-            <button type="button" onClick={() => onEdit(recipe)}>
-              {t("Edit")}
+          <div className="table-actions recipe-preview-header-actions">
+            <button type="button" aria-label={t("Edit")} title={t("Edit")} onClick={() => onEdit(recipe)}>
+              <Pencil size={16} aria-hidden="true" /> <span className="recipe-action-label">{t("Edit")}</span>
             </button>
-            <button type="button" className="danger" onClick={() => onDelete(recipe)}>
-              {t("Delete")}
+            <button type="button" className="danger" aria-label={t("Delete")} title={t("Delete")} onClick={() => onDelete(recipe)}>
+              <X size={16} aria-hidden="true" /> <span className="recipe-action-label">{t("Delete")}</span>
             </button>
+            {onBack ? <MobileBackButton onClick={onBack} /> : null}
           </div>
         </div>
-        {onBack ? <MobileBackButton onClick={onBack} /> : null}
       </div>
       {previewWarnings.length > 0 ? (
         <div className="recipe-preview-warning">

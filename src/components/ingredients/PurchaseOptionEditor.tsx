@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useI18n } from "../../app/i18n";
+import { Save } from "lucide-react";
 import { db } from "../../db/db";
 import type { Ingredient, PurchaseOption } from "../../domain/ingredients/ingredientTypes";
 import { calculatePricePerBaseUnit } from "../../domain/ingredients/priceMath";
@@ -182,6 +183,7 @@ export function PurchaseOptionEditor({
             {t("Cancel")}
           </button>
           <button type="button" className="primary" disabled={isSaving} onClick={saveOption}>
+            <Save size={16} aria-hidden="true" />
             {isSaving ? `${t("Saving")}...` : t("Save option")}
           </button>
         </div>

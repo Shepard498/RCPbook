@@ -45,6 +45,9 @@ Supported yield types include:
 
 Recipe previews show ingredient costs, total estimated cost, cost per count or
 serving when available, procedure steps, warnings, and print-friendly output.
+Printing defaults to A4, uses high-contrast light colors in either app theme,
+and lays out ingredients in two columns with full-width procedure steps.
+Use Show sub-recipes to include their instructions in the preview and printout.
 
 ### Scaling
 
@@ -68,6 +71,8 @@ Purchase planning can use either a simple closest-package choice or a
 multi-option mode that combines available package sizes.
 
 Batch plans can be printed as a shopping list or as scaled recipe sheets.
+On phones, the printer button follows the selected tab: Production targets
+prints scaled recipes, while Shopping list prints the shopping list.
 
 ### Inventory
 
@@ -108,6 +113,9 @@ be visible, not hidden behind made-up assumptions.
 Data is stored locally in the browser using Dexie over IndexedDB. Settings include
 backup export/import controls so data can be saved to a JSON file and restored
 later.
+On phones, navigation and Settings share the left-hand drawer, opened with the
+menu button or an inward swipe from the left edge. The current app version is
+listed at the bottom of Settings.
 
 The browser package includes a small local Node server only to launch the built
 app in a browser. It is not a remote backend.
@@ -177,7 +185,7 @@ SDK can also be used by setting `ANDROID_HOME`.
 
 The build runs TypeScript/Vite, synchronizes Capacitor, builds the Android debug
 variant, and runs Android lint. The resulting test APK is written to
-`release/recipe-ingredient-manager-v0.4.0-android-debug.apk`.
+`release/recipe-ingredient-manager-v0.5.0-android-debug.apk`.
 SDK and Gradle caches stay in `.android-tools`; nothing needs to be installed on
 the phone except the APK. Android Studio is optional for these command-line builds.
 
@@ -212,9 +220,13 @@ npm run package:android:release
 
 This runs the production web build, Capacitor sync, `assembleRelease`, and
 `lintRelease`. The signed, non-debuggable APK is written to
-`release/recipe-ingredient-manager-v0.4.0-android.apk`. Each Android release must
+`release/recipe-ingredient-manager-v0.5.0-android.apk`. Each Android release must
 increase `versionCode` in `android/app/build.gradle`; `versionName` comes from
 `package.json`.
+
+Version 0.5.0 uses the same release signing key as 0.4.0 and can be installed as
+an update without uninstalling that release or the signed UX preview APKs.
+Export a backup before upgrading as a precaution.
 
 Before replacing the old debug app, use Settings > Save data. Android cannot
 install an APK signed with a different key over that app: uninstall the debug

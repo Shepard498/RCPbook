@@ -1,4 +1,5 @@
 import { useI18n } from "../../app/i18n";
+import { Pencil, X } from "lucide-react";
 import type { Recipe } from "../../domain/recipes/recipeTypes";
 import { formatYield } from "../../domain/recipes/yieldFormatting";
 import { formatDate } from "../../utils/dates";
@@ -52,7 +53,7 @@ export function RecipeList({ recipes, selectedRecipeId, onSelect, onEdit, onDele
                       onEdit(recipe);
                     }}
                   >
-                    {t("Edit")}
+                    <Pencil size={16} aria-hidden="true" /> {t("Edit")}
                   </button>
                   <button
                     type="button"
@@ -62,7 +63,7 @@ export function RecipeList({ recipes, selectedRecipeId, onSelect, onEdit, onDele
                       onDelete(recipe);
                     }}
                   >
-                    {t("Delete")}
+                    <X size={16} aria-hidden="true" /> {t("Delete")}
                   </button>
                 </div>
               </td>

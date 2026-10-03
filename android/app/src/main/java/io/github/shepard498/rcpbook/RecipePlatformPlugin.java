@@ -73,7 +73,8 @@ public class RecipePlatformPlugin extends Plugin {
                     return;
                 }
                 String title = call.getString("title", "Recipe Manager");
-                manager.print(title, getBridge().getWebView().createPrintDocumentAdapter(title), new PrintAttributes.Builder().build());
+                manager.print(title, getBridge().getWebView().createPrintDocumentAdapter(title),
+                    new PrintAttributes.Builder().setMediaSize(PrintAttributes.MediaSize.ISO_A4).build());
                 call.resolve();
             } catch (Exception error) {
                 call.reject("Could not open the print dialog.", error);

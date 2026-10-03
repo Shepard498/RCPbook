@@ -2,6 +2,8 @@ import { useEffect, useRef } from "react";
 import { isAndroidApp } from "./platform";
 
 const mobileBackQuery = "(max-width: 720px)";
+const closeTargets: object[] = [];
+const handledEvents = new WeakSet<PopStateEvent>();
 
 export function useInAppBackClose(active: boolean, onClose: () => void, key: string) {
   const activeRef = useRef(active);
@@ -33,16 +35,26 @@ export function useInAppBackClose(active: boolean, onClose: () => void, key: str
     );
     isArmedRef.current = true;
 
-    function handlePopState() {
-      if (!isArmedRef.current || !activeRef.current) {
+    const target = {};
+    closeTargets.push(target);
+
+    function handlePopState(event: PopStateEvent) {
+      // Only the topmost surface should consume Back, preserving any editor underneath.
+      if (handledEvents.has(event) || closeTargets.at(-1) !== target || !isArmedRef.current || !activeRef.current) {
         return;
       }
 
+      handledEvents.add(event);
       isArmedRef.current = false;
       onCloseRef.current();
     }
 
     window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+      const index = closeTargets.indexOf(target);
+      if (index !== -1) closeTargets.splice(index, 1);
+      isArmedRef.current = false;
+    };
   }, [active, key]);
 }

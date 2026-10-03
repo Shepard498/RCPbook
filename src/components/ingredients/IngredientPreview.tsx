@@ -1,4 +1,5 @@
 import { useI18n } from "../../app/i18n";
+import { Pencil, X } from "lucide-react";
 import type {
   Ingredient,
   IngredientCategory,
@@ -54,10 +55,10 @@ export function IngredientPreview({
         </div>
         <div className="table-actions detail-header-actions">
           <button type="button" onClick={() => onEdit(ingredient)}>
-            {t("Edit")}
+            <Pencil size={16} aria-hidden="true" /> {t("Edit")}
           </button>
           <button type="button" className="danger" onClick={() => onDelete(ingredient)}>
-            {t("Delete")}
+            <X size={16} aria-hidden="true" /> {t("Delete")}
           </button>
         </div>
         {onBack ? <MobileBackButton onClick={onBack} /> : null}
@@ -175,7 +176,7 @@ export function IngredientPreview({
                             onDeletePurchaseOption(option);
                           }}
                         >
-                          X
+                          <X size={18} aria-hidden="true" />
                         </button>
                       </div>
                     </div>

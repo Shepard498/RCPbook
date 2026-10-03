@@ -1,4 +1,5 @@
 import { useI18n } from "../../app/i18n";
+import { ArrowLeft } from "lucide-react";
 
 interface MobileBackButtonProps {
   onClick: () => void;
@@ -15,7 +16,7 @@ export function MobileBackButton({ onClick }: MobileBackButtonProps) {
       title={t("Back")}
       onClick={onClick}
     >
-      <span aria-hidden="true">&larr;</span>
+      <ArrowLeft size={18} aria-hidden="true" />
     </button>
   );
 }

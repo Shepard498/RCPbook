@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useI18n } from "../../app/i18n";
+import { Printer } from "lucide-react";
 import { printDocument } from "../../app/platform";
 import { db } from "../../db/db";
 import type { Ingredient } from "../../domain/ingredients/ingredientTypes";
@@ -82,8 +83,8 @@ export function ScaledRecipeView({ scaledRecipe, ingredients, recipes, costResul
           <p className="eyebrow">{t("Scaled recipe")}</p>
           <h2>{scaledRecipe.recipe.name}</h2>
         </div>
-        <button type="button" onClick={() => void printDocument()}>
-          {t("Print")}
+        <button type="button" className="print-button" aria-label={t("Print")} title={t("Print")} onClick={() => void printDocument()}>
+          <Printer size={18} aria-hidden="true" /> <span className="print-button-label">{t("Print")}</span>
         </button>
       </div>
 

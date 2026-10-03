@@ -1,5 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useI18n } from "../../app/i18n";
+import { X } from "lucide-react";
+import { RecipeAddIcons } from "./RecipeAddButton";
 import { useAppPreferences } from "../../app/preferences";
 import type { ProcedureStep } from "../../domain/recipes/recipeTypes";
 import { ProcedureStepImageInput } from "./ProcedureStepImageInput";
@@ -80,7 +82,7 @@ export function ProcedureStepEditor({
               title={t("Delete procedure step")}
               onClick={() => deleteStep(step.id)}
             >
-              X
+              <X size={18} aria-hidden="true" />
             </button>
 
             <div className="procedure-step-left">
@@ -184,7 +186,7 @@ export function ProcedureStepEditor({
           aria-label={t("Add step")}
           title={t("Add step")}
         >
-          <span className="placeholder-plus" aria-hidden="true">+</span>
+          <RecipeAddIcons kind="step" />
           <span>{t("Add step")}</span>
         </button>
       </div>

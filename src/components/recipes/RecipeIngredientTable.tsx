@@ -1,5 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useI18n } from "../../app/i18n";
+import { X } from "lucide-react";
+import { RecipeAddIcons } from "./RecipeAddButton";
 import { useAppPreferences } from "../../app/preferences";
 import type { Ingredient } from "../../domain/ingredients/ingredientTypes";
 import type { Recipe, RecipeLine } from "../../domain/recipes/recipeTypes";
@@ -190,7 +192,7 @@ export function RecipeIngredientTable({
                 title={t("Delete recipe line")}
                 onClick={() => deleteLine(line.id)}
               >
-                X
+                <X size={18} aria-hidden="true" />
               </button>
             </div>
           );
@@ -205,7 +207,7 @@ export function RecipeIngredientTable({
             aria-label={t("Add ingredient")}
             title={t("Add ingredient")}
           >
-            <span className="placeholder-plus" aria-hidden="true">+</span>
+            <RecipeAddIcons kind="ingredient" />
             <span>{t("Add ingredient")}</span>
           </button>
           <button
@@ -216,7 +218,7 @@ export function RecipeIngredientTable({
             aria-label={t("Add sub-recipe")}
             title={t("Add sub-recipe")}
           >
-            <span className="placeholder-plus" aria-hidden="true">+</span>
+            <RecipeAddIcons kind="subrecipe" />
             <span>{t("Add sub-recipe")}</span>
           </button>
         </div>

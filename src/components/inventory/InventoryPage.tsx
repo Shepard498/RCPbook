@@ -1,6 +1,7 @@
 import { liveQuery } from "dexie";
 import { useEffect, useMemo, useState } from "react";
 import { useI18n } from "../../app/i18n";
+import { Pencil, Save, X } from "lucide-react";
 import { useAppPreferences } from "../../app/preferences";
 import { useInAppBackClose } from "../../app/useInAppBackClose";
 import { db } from "../../db/db";
@@ -278,7 +279,7 @@ function InventoryTable({
                         onEdit(item);
                       }}
                     >
-                      {t("Edit")}
+                      <Pencil size={16} aria-hidden="true" /> {t("Edit")}
                     </button>
                     <button
                       type="button"
@@ -288,7 +289,7 @@ function InventoryTable({
                         onDelete(item);
                       }}
                     >
-                      {t("Delete")}
+                      <X size={16} aria-hidden="true" /> {t("Delete")}
                     </button>
                   </div>
                 </td>
@@ -326,10 +327,10 @@ function InventoryPreview({
         </div>
         <div className="table-actions detail-header-actions">
           <button type="button" onClick={() => onEdit(item)}>
-            {t("Edit")}
+            <Pencil size={16} aria-hidden="true" /> {t("Edit")}
           </button>
           <button type="button" className="danger" onClick={() => onDelete(item)}>
-            {t("Delete")}
+            <X size={16} aria-hidden="true" /> {t("Delete")}
           </button>
         </div>
         {onBack ? <MobileBackButton onClick={onBack} /> : null}
@@ -516,7 +517,7 @@ function InventoryEditor({
             {t("Cancel")}
           </button>
           <button type="button" className="primary" disabled={isSaving} onClick={saveItem}>
-            {isSaving ? `${t("Saving")}...` : t("Save inventory item")}
+            <Save size={16} aria-hidden="true" /> {isSaving ? `${t("Saving")}...` : t("Save inventory item")}
           </button>
         </div>
       </div>

@@ -1,5 +1,5 @@
 import { liveQuery } from "dexie";
-import { CircleCheck, Plus, TriangleAlert, X } from "lucide-react";
+import { CircleCheck, Plus, Printer, TriangleAlert, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { flushSync } from "react-dom";
 import { useI18n } from "../../app/i18n";
@@ -23,7 +23,6 @@ import { createId } from "../../utils/ids";
 import { formatPracticalAmount } from "../../utils/amountFormatting";
 import { formatCurrency, formatNumber } from "../../utils/numbers";
 import { NumberInput } from "../common/NumberInput";
-import { SearchInput } from "../common/SearchInput";
 import { ConfirmDialog } from "../common/ConfirmDialog";
 import { UnitSelect } from "../common/UnitSelect";
 import { WarningList } from "../common/WarningList";
@@ -44,7 +43,6 @@ export function BatchPlanner() {
   const [purchaseOptions, setPurchaseOptions] = useState<PurchaseOption[]>([]);
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
   const [rows, setRows] = useState<BatchPlannerRow[]>(() => readSavedRows());
-  const [search, setSearch] = useState("");
   const [purchaseMode, setPurchaseMode] = useState<BatchPurchaseMode>("simple");
   const [showCoveredItems, setShowCoveredItems] = useState(true);
   const [printMode, setPrintMode] = useState<BatchPrintMode>("shopping");
@@ -97,19 +95,6 @@ export function BatchPlanner() {
     () => new Map(miscellaneousItems.map((item) => [item.id, item])),
     [miscellaneousItems],
   );
-  const filteredRecipes = useMemo(() => {
-    const query = search.trim().toLowerCase();
-
-    if (!query) {
-      return recipes;
-    }
-
-    return recipes.filter(
-      (recipe) =>
-        recipe.name.toLowerCase().includes(query) ||
-        formatYield(recipe.yield).toLowerCase().includes(query),
-    );
-  }, [recipes, search]);
   const batchPlan = useMemo(
     () =>
       calculateBatchPlan({
@@ -135,28 +120,32 @@ export function BatchPlanner() {
       <div className="batch-header-print-actions">
         <button
           type="button"
-          className="print-button"
+          className={`print-button ${activeBatchView === "shopping" ? "is-current-view" : ""}`}
+          aria-label={t("Print shopping list")}
+          title={t("Print shopping list")}
           onClick={() => printBatchDocument("shopping")}
           disabled={!hasShoppingList}
         >
-          {t("Print shopping list")}
+          <Printer size={18} aria-hidden="true" /> <span className="print-button-label">{t("Print shopping list")}</span>
         </button>
         <button
           type="button"
-          className="print-button"
+          className={`print-button ${activeBatchView === "targets" ? "is-current-view" : ""}`}
+          aria-label={t("Print recipes")}
+          title={t("Print recipes")}
           onClick={() => printBatchDocument("recipes")}
           disabled={!hasPrintableRecipes}
         >
-          {t("Print recipes")}
+          <Printer size={18} aria-hidden="true" /> <span className="print-button-label">{t("Print recipes")}</span>
         </button>
       </div>,
     );
 
     return () => setAction(null);
-  }, [hasPrintableRecipes, hasShoppingList, printBatchDocument, setAction, t]);
+  }, [activeBatchView, hasPrintableRecipes, hasShoppingList, printBatchDocument, setAction, t]);
 
   function addRow() {
-    const recipe = filteredRecipes[0] ?? recipes[0];
+    const recipe = recipes[0];
 
     if (!recipe) {
       return;
@@ -267,30 +256,27 @@ export function BatchPlanner() {
             <h2>{t("Production targets")}</h2>
           </div>
           <div className="batch-list-toolbar">
-            <div className="batch-search-actions">
-              <SearchInput value={search} onChange={setSearch} placeholder="Filter recipe choices..." />
-              <div className="table-actions">
-                <button
-                  type="button"
-                  className="primary add-button"
-                  aria-label={t("Add recipe")}
-                  onClick={addRow}
-                  disabled={recipes.length === 0}
-                >
-                  <span className="desktop-button-label">{t("Add recipe")}</span>
-                  <span className="mobile-plus-label" aria-hidden="true">+</span>
-                </button>
-                <button
-                  type="button"
-                  className="add-button"
-                  aria-label={t("Add item")}
-                  onClick={addItemRow}
-                  disabled={miscellaneousItems.length === 0}
-                >
-                  <span className="desktop-button-label">{t("Add item")}</span>
-                  <span className="mobile-plus-label" aria-hidden="true">+</span>
-                </button>
-              </div>
+            <div className="table-actions">
+              <button
+                type="button"
+                className="primary add-button"
+                aria-label={t("Add recipe")}
+                onClick={addRow}
+                disabled={recipes.length === 0}
+              >
+                <span className="desktop-button-label">{t("Add recipe")}</span>
+                <span className="mobile-plus-label" aria-hidden="true">+</span>
+              </button>
+              <button
+                type="button"
+                className="add-button"
+                aria-label={t("Add item")}
+                onClick={addItemRow}
+                disabled={miscellaneousItems.length === 0}
+              >
+                <span className="desktop-button-label">{t("Add item")}</span>
+                <span className="mobile-plus-label" aria-hidden="true">+</span>
+              </button>
             </div>
           </div>
           <div className="panel-body batch-controls">
@@ -300,7 +286,6 @@ export function BatchPlanner() {
             ) : (
               <div className="batch-row-list">
                 {rows.map((row, index) => {
-                  const recipe = row.rowType === "recipe" ? recipeById.get(row.recipeId) : null;
                   const item = row.rowType === "item" ? itemById.get(row.ingredientId) : null;
 
                   return (
@@ -312,14 +297,11 @@ export function BatchPlanner() {
                           <label className="batch-row-choice" htmlFor={`batch-choice-${row.id}`}>
                             <span>{t("Recipe")}</span>
                             <select id={`batch-choice-${row.id}`} value={row.recipeId} onChange={(event) => updateRowRecipe(row.id, event.target.value)}>
-                              {filteredRecipes.map((recipeOption) => (
+                              {recipes.map((recipeOption) => (
                                 <option key={recipeOption.id} value={recipeOption.id}>
                                   {recipeOption.name}
                                 </option>
                               ))}
-                              {recipe && !filteredRecipes.some((recipeOption) => recipeOption.id === recipe.id) ? (
-                                <option value={recipe.id}>{recipe.name}</option>
-                              ) : null}
                             </select>
                           </label>
 

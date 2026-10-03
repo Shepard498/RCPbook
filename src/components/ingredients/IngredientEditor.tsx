@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useI18n } from "../../app/i18n";
+import { Save } from "lucide-react";
 import { db } from "../../db/db";
 import type {
   DensityUnit,
@@ -206,6 +207,7 @@ export function IngredientEditor({
             {t("Cancel")}
           </button>
           <button type="button" className="primary" disabled={isSaving} onClick={saveIngredient}>
+            <Save size={16} aria-hidden="true" />
             {isSaving ? `${t("Saving")}...` : saveLabel ?? t("Save ingredient")}
           </button>
         </div>

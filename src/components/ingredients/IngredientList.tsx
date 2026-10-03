@@ -4,6 +4,7 @@ import type {
   PurchaseOption,
 } from "../../domain/ingredients/ingredientTypes";
 import { useI18n } from "../../app/i18n";
+import { Pencil, X } from "lucide-react";
 import { describePriceSummary, getIngredientPriceSummary } from "../../domain/ingredients/priceMath";
 import { formatDate } from "../../utils/dates";
 import { WarningList } from "../common/WarningList";
@@ -85,7 +86,7 @@ export function IngredientList({
                         onEdit(ingredient);
                       }}
                     >
-                      {t("Edit")}
+                      <Pencil size={16} aria-hidden="true" /> {t("Edit")}
                     </button>
                     <button
                       type="button"
@@ -95,7 +96,7 @@ export function IngredientList({
                         onDelete(ingredient);
                       }}
                     >
-                      {t("Delete")}
+                      <X size={16} aria-hidden="true" /> {t("Delete")}
                     </button>
                   </div>
                 </td>

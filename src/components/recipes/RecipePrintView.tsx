@@ -154,7 +154,7 @@ export function RecipePrintView({
       </div>
 
       <h2>{t("Ingredients")}</h2>
-      <ul>{renderRecipeLines(recipe)}</ul>
+      <ul className="recipe-print-ingredients">{renderRecipeLines(recipe)}</ul>
 
       <h2>{t("Procedure")}</h2>
       <ol>
@@ -173,7 +173,7 @@ export function RecipePrintView({
               {section.recipe.lines.length > 0 ? (
                 <>
                   <h4>{t("Ingredients")}</h4>
-                  <ul>{renderRecipeLines(section.recipe)}</ul>
+                  <ul className="recipe-print-ingredients">{renderRecipeLines(section.recipe)}</ul>
                 </>
               ) : null}
               {section.steps.length > 0 ? (

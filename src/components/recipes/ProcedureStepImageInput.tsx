@@ -1,6 +1,7 @@
 import type { ClipboardEvent, ChangeEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useI18n } from "../../app/i18n";
+import { ClipboardPaste, Upload, X } from "lucide-react";
 import { db } from "../../db/db";
 import type { ImageBlobRecord } from "../../domain/images/imageTypes";
 import { todayIso } from "../../utils/dates";
@@ -148,13 +149,13 @@ export function ProcedureStepImageInput({ imageBlobId, onChange }: ProcedureStep
 
       <div className="image-input-actions">
         <button type="button" onClick={() => fileInputRef.current?.click()}>
-          {t("Upload")}
+          <Upload size={16} aria-hidden="true" /> {t("Upload")}
         </button>
         <button type="button" onClick={pasteFromClipboard}>
-          {t("Paste")}
+          <ClipboardPaste size={16} aria-hidden="true" /> {t("Paste")}
         </button>
         <button type="button" className="danger" disabled={!imageBlobId} onClick={clearImage}>
-          {t("Clear")}
+          <X size={16} aria-hidden="true" /> {t("Clear")}
         </button>
       </div>
 

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { translateWarning, useI18n } from "../../app/i18n";
+import { Save } from "lucide-react";
 import { db } from "../../db/db";
 import type { Ingredient } from "../../domain/ingredients/ingredientTypes";
 import type { Recipe } from "../../domain/recipes/recipeTypes";
@@ -217,7 +218,7 @@ export function RecipeEditor({ recipe, ingredients, recipes, onBack, onSaved, on
               {t("Cancel")}
             </button>
             <button type="button" className="primary" disabled={isSaving} onClick={saveRecipe}>
-              {isSaving ? `${t("Saving")}...` : t("Save recipe")}
+              <Save size={16} aria-hidden="true" /> {isSaving ? `${t("Saving")}...` : t("Save recipe")}
             </button>
           </div>
         </div>

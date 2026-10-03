@@ -1,4 +1,5 @@
 import { liveQuery } from "dexie";
+import { Printer } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useI18n } from "../../app/i18n";
 import { printDocument } from "../../app/platform";
@@ -27,6 +28,7 @@ export function RecipesPage() {
   const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null);
   const [pendingDeleteRecipe, setPendingDeleteRecipe] = useState<Recipe | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [includeSubRecipes, setIncludeSubRecipes] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -72,23 +74,32 @@ export function RecipesPage() {
   );
   const hasActiveDetail = isCreating || Boolean(editingRecipe) || Boolean(selectedRecipe);
   const canPrintRecipe = Boolean(selectedRecipe) && !isCreating && !editingRecipe;
+  const hasSubRecipes = Boolean(selectedRecipe?.lines.some((line) => line.itemType === "recipe"));
 
   useInAppBackClose(hasActiveDetail, returnToList, "recipes-detail");
 
+  useEffect(() => setIncludeSubRecipes(false), [selectedRecipeId]);
+
   useEffect(() => {
     setAction(
-      <button
-        type="button"
-        className="print-button"
-        disabled={!canPrintRecipe}
-        onClick={() => void printDocument()}
-      >
-        {t("Print")}
-      </button>,
+      canPrintRecipe ? (
+        <div className="recipe-print-actions">
+          {hasSubRecipes ? (
+            <label className="checkbox-label recipe-print-option">
+              <input type="checkbox" checked={includeSubRecipes} onChange={(event) => setIncludeSubRecipes(event.target.checked)} />
+              {t("Show sub-recipes")}
+            </label>
+          ) : null}
+          <button type="button" className="print-button" aria-label={t("Print")} title={t("Print")} onClick={() => void printDocument()}>
+            <Printer size={18} aria-hidden="true" />
+            <span className="print-button-label">{t("Print")}</span>
+          </button>
+        </div>
+      ) : null,
     );
 
     return () => setAction(null);
-  }, [canPrintRecipe, setAction, t]);
+  }, [canPrintRecipe, hasSubRecipes, includeSubRecipes, setAction, t]);
 
   function returnToList() {
     setSelectedRecipeId(null);
@@ -177,6 +188,7 @@ export function RecipesPage() {
           ) : selectedRecipe ? (
             <RecipePreview
               recipe={selectedRecipe}
+              includeSubRecipes={includeSubRecipes}
               ingredients={ingredients}
               purchaseOptions={purchaseOptions}
               recipes={recipes}

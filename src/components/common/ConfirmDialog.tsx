@@ -1,4 +1,5 @@
 import { useI18n } from "../../app/i18n";
+import { X } from "lucide-react";
 
 interface ConfirmDialogProps {
   title: string;
@@ -33,7 +34,7 @@ export function ConfirmDialog({
             {cancelLabel ?? t("Cancel")}
           </button>
           <button type="button" className="danger" onClick={onConfirm}>
-            {confirmLabel ?? t("Delete")}
+            <X size={16} aria-hidden="true" /> {confirmLabel ?? t("Delete")}
           </button>
         </div>
       </section>
